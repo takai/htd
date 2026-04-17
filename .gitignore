@@ -31,5 +31,7 @@ go.work.sum
 # .idea/
 # .vscode/
 
+bin/
+
 tmp/*
 !tmp/.keep
