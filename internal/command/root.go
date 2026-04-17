@@ -39,6 +39,7 @@ func NewRootCommand() *cobra.Command {
 		return store.EnsureDirs(c.cfg)
 	}
 
+	root.AddCommand(newInitCommand(&c))
 	root.AddCommand(newCaptureCommand(&c))
 	root.AddCommand(newClarifyCommand(&c))
 	root.AddCommand(newOrganizeCommand(&c))

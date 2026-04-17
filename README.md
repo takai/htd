@@ -22,6 +22,14 @@ htd organises work around five phases:
 
 ## Commands
 
+### Init
+
+```
+htd init
+```
+
+Creates the full directory layout under the htd root and prints each directory path. Idempotent — safe to run repeatedly. Other commands also create missing directories on demand, so running `htd init` is optional.
+
 ### Capture
 
 ```
@@ -95,7 +103,8 @@ htd item archive ID
 │   └── tickler/
 ├── reference/
 └── archive/
-    └── items/          ← done / cancelled / discarded items
+    ├── items/          ← done / cancelled / discarded items
+    └── reference/      ← archived reference materials
 ```
 
 All files are Markdown with YAML front matter and can be read, edited, or committed to Git directly.

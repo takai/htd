@@ -2,6 +2,8 @@ package command_test
 
 import (
 	"bytes"
+	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -505,6 +507,83 @@ func TestItemArchive(t *testing.T) {
 	got, _ := readItem(t, dir, "20260417-arch")
 	if got.Status != model.StatusArchived {
 		t.Errorf("status: want archived, got %q", got.Status)
+	}
+}
+
+// ---------- init ----------
+
+func TestInitCreatesDirectories(t *testing.T) {
+	dir := t.TempDir()
+
+	out, _, err := runCmd(t, dir, "init")
+	if err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	want := []string{
+		filepath.Join(dir, "items", "inbox"),
+		filepath.Join(dir, "items", "next_action"),
+		filepath.Join(dir, "items", "project"),
+		filepath.Join(dir, "items", "waiting_for"),
+		filepath.Join(dir, "items", "someday"),
+		filepath.Join(dir, "items", "tickler"),
+		filepath.Join(dir, "archive", "items"),
+		filepath.Join(dir, "archive", "reference"),
+		filepath.Join(dir, "reference"),
+	}
+
+	gotLines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	if len(gotLines) != len(want) {
+		t.Fatalf("init lines: want %d, got %d (%q)", len(want), len(gotLines), out)
+	}
+	for i, w := range want {
+		if gotLines[i] != w {
+			t.Errorf("line %d: want %q, got %q", i, w, gotLines[i])
+		}
+		info, err := os.Stat(w)
+		if err != nil {
+			t.Errorf("stat %q: %v", w, err)
+			continue
+		}
+		if !info.IsDir() {
+			t.Errorf("%q is not a directory", w)
+		}
+	}
+}
+
+func TestInitJSON(t *testing.T) {
+	dir := t.TempDir()
+
+	out, _, err := runCmd(t, dir, "--json", "init")
+	if err != nil {
+		t.Fatalf("init --json: %v", err)
+	}
+
+	var paths []string
+	if err := json.Unmarshal([]byte(out), &paths); err != nil {
+		t.Fatalf("invalid JSON: %v\noutput: %s", err, out)
+	}
+	if len(paths) != 9 {
+		t.Errorf("paths: want 9, got %d (%v)", len(paths), paths)
+	}
+	if paths[0] != filepath.Join(dir, "items", "inbox") {
+		t.Errorf("paths[0]: want %q, got %q", filepath.Join(dir, "items", "inbox"), paths[0])
+	}
+}
+
+func TestInitIdempotent(t *testing.T) {
+	dir := t.TempDir()
+
+	out1, _, err := runCmd(t, dir, "init")
+	if err != nil {
+		t.Fatalf("init first: %v", err)
+	}
+	out2, _, err := runCmd(t, dir, "init")
+	if err != nil {
+		t.Fatalf("init second: %v", err)
+	}
+	if out1 != out2 {
+		t.Errorf("init not idempotent:\nfirst: %q\nsecond: %q", out1, out2)
 	}
 }
 

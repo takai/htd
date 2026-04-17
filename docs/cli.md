@@ -459,10 +459,50 @@ htd item archive ID
 
 ---
 
-## 8. Command Summary
+## 8. Init
+
+### 8.1 `htd init`
+
+Create the htd directory layout at the root and print the directory set.
+
+```
+htd init
+```
+
+**Behavior:**
+
+1. Ensure every directory required by the storage layout (see `docs/datamodel.md §6`) exists under the root specified by `--path`.
+2. Print the full directory set to stdout, one path per line in a stable order.
+
+**Notes:**
+
+- Running other `htd` commands also creates any missing directories as a side effect; `htd init` exists to make the setup explicit and to confirm the layout.
+- The command is idempotent — re-running it produces the same output and does not modify existing files.
+
+**JSON output:** A JSON array of directory paths.
+
+**Example:**
+
+```
+$ htd init
+items/inbox
+items/next_action
+items/project
+items/waiting_for
+items/someday
+items/tickler
+archive/items
+archive/reference
+reference
+```
+
+---
+
+## 9. Command Summary
 
 | Command | Description |
 |---------|-------------|
+| `htd init` | Create the htd directory layout |
 | `htd capture add` | Add a new item to the inbox |
 | `htd clarify list` | List inbox items |
 | `htd clarify show ID` | Show an inbox item |

@@ -28,6 +28,17 @@ func (p *Printer) PrintID(id string) {
 	fmt.Fprintln(p.out, id)
 }
 
+func (p *Printer) PrintPaths(paths []string) {
+	if p.json {
+		data, _ := json.Marshal(paths)
+		fmt.Fprintln(p.out, string(data))
+		return
+	}
+	for _, d := range paths {
+		fmt.Fprintln(p.out, d)
+	}
+}
+
 func (p *Printer) PrintItem(item *model.Item, body string) {
 	if p.json {
 		p.printItemJSON(item, body)

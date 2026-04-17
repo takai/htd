@@ -271,7 +271,7 @@ Examples:
 
 ### 6.3 Initialization
 
-Running any `htd` command on an empty directory creates the full directory structure automatically. All directories are created, including empty ones, to ensure consistent layout.
+Running any `htd` command on an empty directory creates the full directory structure automatically. All directories are created, including empty ones, to ensure consistent layout. The `htd init` command makes this setup explicit and prints the resulting directory set, which is useful for scripting and for confirming the layout before capturing items.
 
 ### 6.4 File Location Rules
 

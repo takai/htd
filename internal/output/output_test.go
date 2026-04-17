@@ -45,7 +45,7 @@ func TestPrintItemJSON(t *testing.T) {
 	item := makeItem("20260417-json", model.KindNextAction)
 	p.PrintItem(item, "body content")
 
-	var obj map[string]interface{}
+	var obj map[string]any
 	if err := json.Unmarshal(out.Bytes(), &obj); err != nil {
 		t.Fatalf("invalid JSON: %v\noutput: %s", err, out.String())
 	}
@@ -80,7 +80,7 @@ func TestPrintItemsJSON(t *testing.T) {
 	}
 	p.PrintItems(items)
 
-	var arr []map[string]interface{}
+	var arr []map[string]any
 	if err := json.Unmarshal(out.Bytes(), &arr); err != nil {
 		t.Fatalf("invalid JSON array: %v\noutput: %s", err, out.String())
 	}
@@ -106,5 +106,30 @@ func TestPrintID(t *testing.T) {
 
 	if strings.TrimSpace(out.String()) != "20260417-new_item" {
 		t.Errorf("PrintID: want %q, got %q", "20260417-new_item", out.String())
+	}
+}
+
+func TestPrintPathsText(t *testing.T) {
+	var out bytes.Buffer
+	p := output.New(&out, &bytes.Buffer{}, false)
+	p.PrintPaths([]string{"items/inbox", "items/project", "reference"})
+
+	want := "items/inbox\nitems/project\nreference\n"
+	if got := out.String(); got != want {
+		t.Errorf("PrintPaths text: want %q, got %q", want, got)
+	}
+}
+
+func TestPrintPathsJSON(t *testing.T) {
+	var out bytes.Buffer
+	p := output.New(&out, &bytes.Buffer{}, true)
+	p.PrintPaths([]string{"items/inbox", "reference"})
+
+	var arr []string
+	if err := json.Unmarshal(out.Bytes(), &arr); err != nil {
+		t.Fatalf("invalid JSON: %v\noutput: %s", err, out.String())
+	}
+	if len(arr) != 2 || arr[0] != "items/inbox" || arr[1] != "reference" {
+		t.Errorf("PrintPaths JSON: got %v", arr)
 	}
 }
