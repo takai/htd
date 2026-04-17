@@ -1,6 +1,8 @@
 [tools]
 go = "1.26.2"
 golangci-lint = "v2.11.4"
+hk = "1.42.0"
+pkl = "latest"
 
 [tasks.build]
 description = "Build the htd binary"
@@ -8,7 +10,10 @@ run = "go build -o bin/htd ./cmd/htd/"
 
 [tasks.lint]
 description = "Run golangci-lint"
-run = "golangci-lint run ./..."
+run = [
+    "go fix ./...",
+    "golangci-lint run ./...",
+]
 
 [tasks.test]
 description = "Run all tests"

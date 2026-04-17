@@ -1,0 +1,18 @@
+amends "package://github.com/jdx/hk/releases/download/v1.42.0/hk@1.42.0#/Config.pkl"
+
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["lint"] {
+                glob = List("*.go")
+                check = "mise run lint"
+                exclusive = true
+            }
+            ["test"] {
+                glob = List("*.go")
+                check = "mise run test"
+                exclusive = true
+            }
+        }
+    }
+}
