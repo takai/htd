@@ -1,0 +1,15 @@
+[tools]
+go = "1.25.8"
+golangci-lint = "latest"
+
+[tasks.build]
+description = "Build the htd binary"
+run = "go build -o bin/htd ./cmd/htd/"
+
+[tasks.lint]
+description = "Run golangci-lint"
+run = "golangci-lint run ./..."
+
+[tasks.test]
+description = "Run all tests"
+run = "go test ./..."
