@@ -2,7 +2,7 @@
   "name": "htd",
   "owner": {
     "name": "Naoto Takai",
-    "email": "takai-naoto@ivry.jp"
+    "email": "takai@recompile.net"
   },
   "description": "Plugin marketplace for the htd headless task management CLI.",
   "plugins": [
