@@ -1,6 +1,6 @@
 [tools]
-go = "1.25.8"
-golangci-lint = "latest"
+go = "1.26.2"
+golangci-lint = "v2.11.4"
 
 [tasks.build]
 description = "Build the htd binary"
