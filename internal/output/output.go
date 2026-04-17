@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"text/tabwriter"
 
 	"github.com/takai/htd/internal/model"
 )
@@ -95,14 +96,28 @@ func (p *Printer) printItemText(item *model.Item, body string) {
 }
 
 func (p *Printer) printItemsText(items []*model.Item) {
-	fmt.Fprintf(p.out, "%-30s  %-15s  %-12s  %s\n", "ID", "KIND", "STATUS", "TITLE")
+	tw := tabwriter.NewWriter(p.out, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "ID\tKIND\tSTATUS\tTITLE")
 	for _, it := range items {
-		title := it.Title
-		if len(title) > 40 {
-			title = title[:37] + "..."
-		}
-		fmt.Fprintf(p.out, "%-30s  %-15s  %-12s  %s\n", it.ID, it.Kind, it.Status, title)
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", it.ID, it.Kind, it.Status, truncateRunes(it.Title, 40))
 	}
+	_ = tw.Flush()
+}
+
+// truncateRunes returns s truncated to at most max runes, appending "..." if it
+// was shortened. Slices by rune boundaries so multi-byte characters stay intact.
+func truncateRunes(s string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	if max <= 3 {
+		return string(runes[:max])
+	}
+	return string(runes[:max-3]) + "..."
 }
 
 // itemJSON is a flat JSON representation of an Item including body.

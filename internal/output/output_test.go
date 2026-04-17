@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/takai/htd/internal/model"
 	"github.com/takai/htd/internal/output"
@@ -69,6 +70,50 @@ func TestPrintItemsText(t *testing.T) {
 	s := out.String()
 	if !strings.Contains(s, "20260417-a") || !strings.Contains(s, "20260417-b") {
 		t.Errorf("text list missing items: %q", s)
+	}
+}
+
+func TestPrintItemsTextTruncatesTitleByRunes(t *testing.T) {
+	var out bytes.Buffer
+	p := output.New(&out, &bytes.Buffer{}, false)
+	long := strings.Repeat("チ", 50)
+	item := makeItem("20260417-a", model.KindInbox)
+	item.Title = long
+	p.PrintItems([]*model.Item{item})
+
+	s := out.String()
+	if !utf8.ValidString(s) {
+		t.Errorf("output is not valid UTF-8: %q", s)
+	}
+	if !strings.Contains(s, "...") {
+		t.Errorf("long title should be truncated with ellipsis: %q", s)
+	}
+}
+
+func TestPrintItemsTextAlignsLongIDs(t *testing.T) {
+	var out bytes.Buffer
+	p := output.New(&out, &bytes.Buffer{}, false)
+	longID := "20260417-" + strings.Repeat("x", 60)
+	items := []*model.Item{
+		makeItem(longID, model.KindInbox),
+		makeItem("20260417-short", model.KindProject),
+	}
+	p.PrintItems(items)
+
+	lines := strings.Split(strings.TrimRight(out.String(), "\n"), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("want 3 lines (header + 2 rows), got %d: %q", len(lines), out.String())
+	}
+	if !strings.Contains(lines[1], longID) {
+		t.Errorf("long ID row missing ID: %q", lines[1])
+	}
+	// KIND column must start at the same offset across header and every row.
+	headerKind := strings.Index(lines[0], "KIND")
+	row1Kind := strings.Index(lines[1], "inbox")
+	row2Kind := strings.Index(lines[2], "project")
+	if headerKind != row1Kind || headerKind != row2Kind {
+		t.Errorf("KIND column offsets must match: header=%d row1=%d row2=%d\n%s",
+			headerKind, row1Kind, row2Kind, out.String())
 	}
 }
 
