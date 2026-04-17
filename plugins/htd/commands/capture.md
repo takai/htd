@@ -38,6 +38,7 @@ Run it, print the resulting ID, and stop. Do not chain into clarify/organize —
 ## Notes
 
 - Titles stay in English per project convention.
-- The ID is auto-generated from the title as `YYYYMMDD-<slug>`. Don't try to set it yourself.
+- Keep titles concise — aim for roughly 6–8 words and under 50 characters. The ID is derived from the title as `YYYYMMDD-<slug>`, and long IDs clutter list output and shell history. Trim filler words, drop redundant context (repo names, ticket numbers beyond the primary one), and save details for `--body`.
+- The ID is auto-generated from the title. Don't try to set it yourself.
 - The item lands in `items/inbox/` with `kind: inbox`, `status: active`.
 - If `$ARGUMENTS` would produce an empty title (whitespace only), fall through to the "arguments empty" path.
