@@ -818,6 +818,61 @@ func TestCompletionDoesNotTouchPath(t *testing.T) {
 	}
 }
 
+// ---------- HTD_PATH env var ----------
+
+func runCmdNoPath(t *testing.T, args ...string) (string, string, error) {
+	t.Helper()
+	root := command.NewRootCommand()
+	var out, errOut bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&errOut)
+	root.SetArgs(args)
+	err := root.Execute()
+	return out.String(), errOut.String(), err
+}
+
+func TestHTDPathEnvVar(t *testing.T) {
+	dir := setupDir(t)
+	t.Setenv("HTD_PATH", dir)
+
+	out, _, err := runCmdNoPath(t, "capture", "add", "--title", "env-rooted")
+	if err != nil {
+		t.Fatalf("capture add: %v", err)
+	}
+	id := strings.TrimSpace(out)
+	if id == "" {
+		t.Fatal("expected ID")
+	}
+	p := filepath.Join(dir, "items", "inbox", id+".md")
+	if _, err := os.Stat(p); err != nil {
+		t.Errorf("expected item at %q, stat err: %v", p, err)
+	}
+}
+
+func TestHTDPathFlagOverridesEnvVar(t *testing.T) {
+	envDir := setupDir(t)
+	flagDir := setupDir(t)
+	t.Setenv("HTD_PATH", envDir)
+
+	out, _, err := runCmd(t, flagDir, "capture", "add", "--title", "flag-wins")
+	if err != nil {
+		t.Fatalf("capture add: %v", err)
+	}
+	id := strings.TrimSpace(out)
+	if id == "" {
+		t.Fatal("expected ID")
+	}
+
+	inFlag := filepath.Join(flagDir, "items", "inbox", id+".md")
+	if _, err := os.Stat(inFlag); err != nil {
+		t.Errorf("expected item under flagDir, stat %q: %v", inFlag, err)
+	}
+	inEnv := filepath.Join(envDir, "items", "inbox", id+".md")
+	if _, err := os.Stat(inEnv); !os.IsNotExist(err) {
+		t.Errorf("did not expect item under envDir; stat %q: %v", inEnv, err)
+	}
+}
+
 // ---------- helper ----------
 
 func firstN(s string, n int) string {

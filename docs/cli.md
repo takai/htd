@@ -30,9 +30,17 @@ Command groups map to the five workflow phases plus a low-level `item` group:
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `--json` | flag | `false` | Output in JSON format instead of human-readable text |
-| `--path` | string | `.` (current directory) | Specify the htd root directory |
+| `--path` | string | `$HTD_PATH` or `.` | Specify the htd root directory (overrides `$HTD_PATH`) |
 
 Global options may appear before or after the command group.
+
+**Environment variables**
+
+| Variable | Description |
+|----------|-------------|
+| `HTD_PATH` | Default value for `--path`. Used only when `--path` is not passed on the command line. An absolute path is recommended so that `htd` operates on the same data directory regardless of the current working directory; relative values are resolved against the cwd, matching the flag's behavior. |
+
+Resolution order for the root directory: `--path` (if given) → `$HTD_PATH` (if non-empty) → `.`.
 
 ### 1.4 Exit Codes
 

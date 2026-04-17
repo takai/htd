@@ -31,9 +31,14 @@ func NewRootCommand() *cobra.Command {
 	}
 
 	root.PersistentFlags().BoolVar(&jsonMode, "json", false, "Output in JSON format")
-	root.PersistentFlags().StringVar(&path, "path", ".", "htd root directory")
+	root.PersistentFlags().StringVar(&path, "path", ".", "htd root directory (overrides $HTD_PATH)")
 
 	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		if !cmd.Flags().Changed("path") {
+			if env := os.Getenv("HTD_PATH"); env != "" {
+				path = env
+			}
+		}
 		c.cfg = config.New(path)
 		c.printer = output.New(cmd.OutOrStdout(), cmd.ErrOrStderr(), jsonMode)
 		if isCompletionCommand(cmd) {
