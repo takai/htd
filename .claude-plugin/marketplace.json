@@ -1,0 +1,17 @@
+{
+  "name": "htd",
+  "owner": {
+    "name": "Naoto Takai",
+    "email": "takai-naoto@ivry.jp"
+  },
+  "description": "Plugin marketplace for the htd headless task management CLI.",
+  "plugins": [
+    {
+      "name": "htd",
+      "source": "./plugins/htd",
+      "description": "Drive the htd five-phase workflow from Claude Code: capture, clarify, organize, reflect, engage.",
+      "version": "0.1.0",
+      "keywords": ["task-management", "workflow", "productivity", "cli"]
+    }
+  ]
+}

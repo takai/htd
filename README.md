@@ -70,9 +70,14 @@ htd reflect done --since DATE
 ### Engage
 
 ```
+htd engage next-action [--project PROJECT_ID] [--tag TAG]...
+htd engage waiting [--stale-days N]
+htd engage tickler
 htd engage done ID
 htd engage cancel ID
 ```
+
+The list commands surface what demands action now: next actions ready to work on, waiting-for items untouched for `--stale-days` or more (default 7), and ticklers whose trigger date has arrived.
 
 ### Low-level item access
 
@@ -116,3 +121,16 @@ All files are Markdown with YAML front matter and can be read, edited, or commit
 | `0` | Success |
 | `1` | General error |
 | `2` | Item not found |
+
+## Claude Code plugin
+
+This repository also ships a Claude Code plugin that drives the five-phase workflow from inside Claude Code. It exposes one slash command per phase (`/htd:capture`, `/htd:clarify`, `/htd:organize`, `/htd:reflect`, `/htd:engage`), a workflow skill, and two subagents for the longer clarify and reflect flows. The plugin wraps the `htd` CLI, so the binary must be installed and on `PATH`.
+
+Install the CLI and create a working directory as above, then inside Claude Code:
+
+```
+/plugin marketplace add takai/htd
+/plugin install htd@htd
+```
+
+Launch Claude Code from whichever directory you run `htd init` in — the plugin operates on the current working directory. To point at a local clone instead of the remote repository, use `/plugin marketplace add /path/to/htd`.
