@@ -1,0 +1,185 @@
+package command
+
+import (
+	"fmt"
+	"sort"
+	"time"
+
+	"github.com/spf13/cobra"
+
+	"github.com/takai/htd/internal/model"
+	"github.com/takai/htd/internal/store"
+)
+
+func newReflectCommand(c *container) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "reflect",
+		Short: "Review and inspect the state of the system",
+	}
+	cmd.AddCommand(
+		newReflectNextActionsCommand(c),
+		newReflectProjectsCommand(c),
+		newReflectWaitingCommand(c),
+		newReflectReviewCommand(c),
+		newReflectDoneCommand(c),
+	)
+	return cmd
+}
+
+func newReflectNextActionsCommand(c *container) *cobra.Command {
+	return &cobra.Command{
+		Use:   "next-actions",
+		Short: "List all active next actions",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			kind := model.KindNextAction
+			status := model.StatusActive
+			items, err := store.List(c.cfg, store.Filter{Kind: &kind, Status: &status})
+			if err != nil {
+				return err
+			}
+			now := time.Now()
+			var visible []*model.Item
+			for _, it := range items {
+				if it.DeferUntil == nil || !it.DeferUntil.After(now) {
+					visible = append(visible, it)
+				}
+			}
+			// Sort by due_at ascending, nil due dates last
+			sort.Slice(visible, func(i, j int) bool {
+				if visible[i].DueAt == nil {
+					return false
+				}
+				if visible[j].DueAt == nil {
+					return true
+				}
+				return visible[i].DueAt.Before(*visible[j].DueAt)
+			})
+			c.printer.PrintItems(visible)
+			return nil
+		},
+	}
+}
+
+func newReflectProjectsCommand(c *container) *cobra.Command {
+	var stalled bool
+
+	cmd := &cobra.Command{
+		Use:   "projects",
+		Short: "List all active projects",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			kind := model.KindProject
+			status := model.StatusActive
+			projects, err := store.List(c.cfg, store.Filter{Kind: &kind, Status: &status})
+			if err != nil {
+				return err
+			}
+
+			// Build set of project IDs that have at least one linked active next action
+			naKind := model.KindNextAction
+			naStatus := model.StatusActive
+			nextActions, err := store.List(c.cfg, store.Filter{Kind: &naKind, Status: &naStatus})
+			if err != nil {
+				return err
+			}
+			linkedProjects := make(map[string]int)
+			for _, na := range nextActions {
+				if na.Project != "" {
+					linkedProjects[na.Project]++
+				}
+			}
+
+			var result []*model.Item
+			for _, proj := range projects {
+				if stalled && linkedProjects[proj.ID] > 0 {
+					continue
+				}
+				result = append(result, proj)
+			}
+			c.printer.PrintItems(result)
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&stalled, "stalled", false, "Show only stalled projects")
+	return cmd
+}
+
+func newReflectWaitingCommand(c *container) *cobra.Command {
+	return &cobra.Command{
+		Use:   "waiting",
+		Short: "List all active waiting-for items",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			kind := model.KindWaitingFor
+			status := model.StatusActive
+			items, err := store.List(c.cfg, store.Filter{Kind: &kind, Status: &status})
+			if err != nil {
+				return err
+			}
+			c.printer.PrintItems(items)
+			return nil
+		},
+	}
+}
+
+func newReflectReviewCommand(c *container) *cobra.Command {
+	return &cobra.Command{
+		Use:   "review",
+		Short: "List items due for review",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			status := model.StatusActive
+			items, err := store.List(c.cfg, store.Filter{Status: &status})
+			if err != nil {
+				return err
+			}
+			now := time.Now()
+			todayEnd := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, now.Location())
+			var due []*model.Item
+			for _, it := range items {
+				if it.ReviewAt != nil && !it.ReviewAt.After(todayEnd) {
+					due = append(due, it)
+				}
+			}
+			sort.Slice(due, func(i, j int) bool {
+				return due[i].ReviewAt.Before(*due[j].ReviewAt)
+			})
+			c.printer.PrintItems(due)
+			return nil
+		},
+	}
+}
+
+func newReflectDoneCommand(c *container) *cobra.Command {
+	var since string
+
+	cmd := &cobra.Command{
+		Use:   "done",
+		Short: "List recently completed items",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			sinceTime, err := time.ParseInLocation("2006-01-02", since, time.Local)
+			if err != nil {
+				return fmt.Errorf("--since: cannot parse %q as date", since)
+			}
+
+			status := model.StatusDone
+			items, err := store.List(c.cfg, store.Filter{Status: &status})
+			if err != nil {
+				return err
+			}
+			var result []*model.Item
+			for _, it := range items {
+				if !it.UpdatedAt.Before(sinceTime) {
+					result = append(result, it)
+				}
+			}
+			sort.Slice(result, func(i, j int) bool {
+				return result[i].UpdatedAt.After(result[j].UpdatedAt)
+			})
+			c.printer.PrintItems(result)
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&since, "since", "", "Show items completed since this date (YYYY-MM-DD)")
+	_ = cmd.MarkFlagRequired("since")
+	return cmd
+}
