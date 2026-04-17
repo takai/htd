@@ -368,6 +368,67 @@ htd engage cancel ID
 - Only active items can be canceled.
 - `inbox` items can also be canceled via this command, though `clarify discard` is preferred for inbox items that were never actionable.
 
+### 6.3 `htd engage next-action`
+
+List next actions that are ready to work on now.
+
+```
+htd engage next-action [--project PROJECT_ID] [--tag TAG]...
+```
+
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--project` | no | Filter by project ID |
+| `--tag` | no | Filter by tag; repeatable (items must match all supplied tags) |
+
+**Behavior:**
+
+1. Read all files in `items/next_action/` with `status: active`.
+2. Exclude items where `defer_until` is in the future.
+3. Apply `--project` and `--tag` filters if provided.
+4. Display: `ID`, `TITLE`, `PROJECT`, `DUE_AT`.
+5. Sort by `due_at` ascending (items without due dates last).
+
+This command overlaps with `reflect next-actions` in content; the difference is intent (Engage = pick work; Reflect = review system) plus the filter flags above.
+
+### 6.4 `htd engage waiting`
+
+List waiting-for items that need follow-up because they have been untouched for a while.
+
+```
+htd engage waiting [--stale-days N]
+```
+
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--stale-days` | no | Stale threshold in days (default `7`). Items whose `updated_at` is older than this are shown. |
+
+**Behavior:**
+
+1. Read all files in `items/waiting_for/` with `status: active`.
+2. For each item, compute age as `now - updated_at` (or `created_at` if `updated_at` is absent).
+3. Keep items with age ≥ `--stale-days`.
+4. Display: `ID`, `TITLE`, `AGE_DAYS`, `UPDATED_AT`.
+5. Sort by age descending (oldest first).
+
+**JSON output:** Array of items with an added `age_days` integer field.
+
+### 6.5 `htd engage tickler`
+
+List tickler items whose trigger date has arrived.
+
+```
+htd engage tickler
+```
+
+**Behavior:**
+
+1. Read all files in `items/tickler/` with `status: active`.
+2. For each item, take `defer_until` as the trigger; if absent, fall back to `review_at`; if both are absent, skip.
+3. Keep items whose trigger is today or in the past.
+4. Display: `ID`, `TITLE`, `DEFER_UNTIL`.
+5. Sort by trigger ascending (earliest first).
+
 ---
 
 ## 7. Item (Low-Level CRUD)
@@ -518,6 +579,9 @@ reference
 | `htd reflect done --since DATE` | List recently completed items |
 | `htd engage done ID` | Mark an item as done |
 | `htd engage cancel ID` | Cancel an active item |
+| `htd engage next-action` | List next actions ready to work on now |
+| `htd engage waiting` | List waiting-for items that need follow-up |
+| `htd engage tickler` | List tickler items whose trigger date has arrived |
 | `htd item get ID` | Get any item by ID |
 | `htd item list` | List items with filters |
 | `htd item update ID` | Update item fields directly |

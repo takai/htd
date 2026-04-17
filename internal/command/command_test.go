@@ -331,6 +331,203 @@ func TestEngageCancel(t *testing.T) {
 	}
 }
 
+func TestEngageNextAction(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260417-na_ready", model.KindNextAction, model.StatusActive), "")
+	writeItem(t, dir, nowItem("20260417-na_done", model.KindNextAction, model.StatusDone), "")
+
+	deferred := nowItem("20260417-na_deferred", model.KindNextAction, model.StatusActive)
+	future := time.Now().Add(24 * time.Hour)
+	deferred.DeferUntil = &future
+	writeItem(t, dir, deferred, "")
+
+	out, _, err := runCmd(t, dir, "engage", "next-action")
+	if err != nil {
+		t.Fatalf("engage next-action: %v", err)
+	}
+	if !strings.Contains(out, "20260417-na_ready") {
+		t.Errorf("missing ready next action: %q", out)
+	}
+	if strings.Contains(out, "20260417-na_done") {
+		t.Errorf("should not include done item: %q", out)
+	}
+	if strings.Contains(out, "20260417-na_deferred") {
+		t.Errorf("should not include deferred item: %q", out)
+	}
+}
+
+func TestEngageNextActionFilterProject(t *testing.T) {
+	dir := setupDir(t)
+	a := nowItem("20260417-na_a", model.KindNextAction, model.StatusActive)
+	a.Project = "20260417-proj_a"
+	b := nowItem("20260417-na_b", model.KindNextAction, model.StatusActive)
+	b.Project = "20260417-proj_b"
+	writeItem(t, dir, a, "")
+	writeItem(t, dir, b, "")
+
+	out, _, err := runCmd(t, dir, "engage", "next-action", "--project", "20260417-proj_a")
+	if err != nil {
+		t.Fatalf("engage next-action --project: %v", err)
+	}
+	if !strings.Contains(out, "20260417-na_a") {
+		t.Errorf("missing project-a next action: %q", out)
+	}
+	if strings.Contains(out, "20260417-na_b") {
+		t.Errorf("should not include project-b next action: %q", out)
+	}
+}
+
+func TestEngageNextActionFilterTag(t *testing.T) {
+	dir := setupDir(t)
+	tagged := nowItem("20260417-na_tagged", model.KindNextAction, model.StatusActive)
+	tagged.Tags = []string{"urgent", "home"}
+	other := nowItem("20260417-na_other", model.KindNextAction, model.StatusActive)
+	other.Tags = []string{"work"}
+	writeItem(t, dir, tagged, "")
+	writeItem(t, dir, other, "")
+
+	out, _, err := runCmd(t, dir, "engage", "next-action", "--tag", "urgent")
+	if err != nil {
+		t.Fatalf("engage next-action --tag: %v", err)
+	}
+	if !strings.Contains(out, "20260417-na_tagged") {
+		t.Errorf("missing tagged next action: %q", out)
+	}
+	if strings.Contains(out, "20260417-na_other") {
+		t.Errorf("should not include untagged next action: %q", out)
+	}
+}
+
+func TestEngageWaiting(t *testing.T) {
+	dir := setupDir(t)
+	now := time.Now()
+
+	stale := nowItem("20260417-wait_stale", model.KindWaitingFor, model.StatusActive)
+	stale.UpdatedAt = now.Add(-10 * 24 * time.Hour)
+	stale.CreatedAt = stale.UpdatedAt
+	writeItem(t, dir, stale, "")
+
+	fresh := nowItem("20260417-wait_fresh", model.KindWaitingFor, model.StatusActive)
+	writeItem(t, dir, fresh, "")
+
+	out, _, err := runCmd(t, dir, "engage", "waiting")
+	if err != nil {
+		t.Fatalf("engage waiting: %v", err)
+	}
+	if !strings.Contains(out, "20260417-wait_stale") {
+		t.Errorf("missing stale waiting item: %q", out)
+	}
+	if strings.Contains(out, "20260417-wait_fresh") {
+		t.Errorf("should not include fresh waiting item: %q", out)
+	}
+}
+
+func TestEngageWaitingStaleDaysFlag(t *testing.T) {
+	dir := setupDir(t)
+	now := time.Now()
+
+	item := nowItem("20260417-wait_3d", model.KindWaitingFor, model.StatusActive)
+	item.UpdatedAt = now.Add(-3 * 24 * time.Hour)
+	item.CreatedAt = item.UpdatedAt
+	writeItem(t, dir, item, "")
+
+	out, _, err := runCmd(t, dir, "engage", "waiting")
+	if err != nil {
+		t.Fatalf("engage waiting (default): %v", err)
+	}
+	if strings.Contains(out, "20260417-wait_3d") {
+		t.Errorf("3-day item should be excluded under default stale-days (7): %q", out)
+	}
+
+	out, _, err = runCmd(t, dir, "engage", "waiting", "--stale-days", "2")
+	if err != nil {
+		t.Fatalf("engage waiting --stale-days 2: %v", err)
+	}
+	if !strings.Contains(out, "20260417-wait_3d") {
+		t.Errorf("3-day item should be included under --stale-days 2: %q", out)
+	}
+}
+
+func TestEngageWaitingJSONIncludesAgeDays(t *testing.T) {
+	dir := setupDir(t)
+	now := time.Now()
+
+	stale := nowItem("20260417-wait_aged", model.KindWaitingFor, model.StatusActive)
+	stale.UpdatedAt = now.Add(-10 * 24 * time.Hour)
+	stale.CreatedAt = stale.UpdatedAt
+	writeItem(t, dir, stale, "")
+
+	out, _, err := runCmd(t, dir, "--json", "engage", "waiting")
+	if err != nil {
+		t.Fatalf("engage waiting --json: %v", err)
+	}
+
+	var arr []map[string]any
+	if err := json.Unmarshal([]byte(out), &arr); err != nil {
+		t.Fatalf("parse json: %v (out=%q)", err, out)
+	}
+	if len(arr) != 1 {
+		t.Fatalf("want 1 item, got %d", len(arr))
+	}
+	age, ok := arr[0]["age_days"].(float64)
+	if !ok {
+		t.Fatalf("age_days missing or wrong type: %v", arr[0])
+	}
+	if age < 9 || age > 11 {
+		t.Errorf("age_days: want ~10, got %v", age)
+	}
+}
+
+func TestEngageTickler(t *testing.T) {
+	dir := setupDir(t)
+	now := time.Now()
+	past := now.Add(-24 * time.Hour)
+	future := now.Add(24 * time.Hour)
+
+	due := nowItem("20260417-tick_due", model.KindTickler, model.StatusActive)
+	due.DeferUntil = &past
+	writeItem(t, dir, due, "")
+
+	notYet := nowItem("20260417-tick_future", model.KindTickler, model.StatusActive)
+	notYet.DeferUntil = &future
+	writeItem(t, dir, notYet, "")
+
+	noDate := nowItem("20260417-tick_nodate", model.KindTickler, model.StatusActive)
+	writeItem(t, dir, noDate, "")
+
+	out, _, err := runCmd(t, dir, "engage", "tickler")
+	if err != nil {
+		t.Fatalf("engage tickler: %v", err)
+	}
+	if !strings.Contains(out, "20260417-tick_due") {
+		t.Errorf("missing due tickler: %q", out)
+	}
+	if strings.Contains(out, "20260417-tick_future") {
+		t.Errorf("should not include future tickler: %q", out)
+	}
+	if strings.Contains(out, "20260417-tick_nodate") {
+		t.Errorf("should not include dateless tickler: %q", out)
+	}
+}
+
+func TestEngageTicklerReviewAtFallback(t *testing.T) {
+	dir := setupDir(t)
+	now := time.Now()
+	past := now.Add(-24 * time.Hour)
+
+	tick := nowItem("20260417-tick_review", model.KindTickler, model.StatusActive)
+	tick.ReviewAt = &past
+	writeItem(t, dir, tick, "")
+
+	out, _, err := runCmd(t, dir, "engage", "tickler")
+	if err != nil {
+		t.Fatalf("engage tickler: %v", err)
+	}
+	if !strings.Contains(out, "20260417-tick_review") {
+		t.Errorf("missing review_at-triggered tickler: %q", out)
+	}
+}
+
 // ---------- reflect ----------
 
 func TestReflectNextActions(t *testing.T) {

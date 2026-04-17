@@ -160,3 +160,23 @@ func (p *Printer) printItemsJSON(items []*model.Item) {
 	data, _ := json.Marshal(arr)
 	fmt.Fprintln(p.out, string(data))
 }
+
+type waitingItemJSON struct {
+	itemJSON
+	AgeDays int `json:"age_days"`
+}
+
+// PrintWaitingItems prints items with an age_days field added in JSON output.
+// Text output is identical to PrintItems. ageDays must be the same length as items.
+func (p *Printer) PrintWaitingItems(items []*model.Item, ageDays []int) {
+	if p.json {
+		arr := make([]waitingItemJSON, len(items))
+		for i, it := range items {
+			arr[i] = waitingItemJSON{itemJSON: toItemJSON(it, ""), AgeDays: ageDays[i]}
+		}
+		data, _ := json.Marshal(arr)
+		fmt.Fprintln(p.out, string(data))
+		return
+	}
+	p.printItemsText(items)
+}
