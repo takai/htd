@@ -559,7 +559,39 @@ reference
 
 ---
 
-## 9. Command Summary
+## 9. Completion
+
+### 9.1 `htd completion`
+
+Emit a shell completion script for the given shell to stdout.
+
+```
+htd completion SHELL
+```
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `SHELL` | yes | One of `bash`, `zsh`, `fish`, `powershell` |
+
+**Behavior:**
+
+1. Write the completion script for `SHELL` to stdout.
+2. The script covers all command groups, subcommands, and flags.
+3. Does not read or create any files under `--path`; safe to run anywhere.
+
+**Examples:**
+
+```
+# Bash (current session)
+source <(htd completion bash)
+
+# Zsh (one-time install)
+htd completion zsh > "${fpath[1]}/_htd"
+```
+
+---
+
+## 10. Command Summary
 
 | Command | Description |
 |---------|-------------|
@@ -586,3 +618,4 @@ reference
 | `htd item list` | List items with filters |
 | `htd item update ID` | Update item fields directly |
 | `htd item archive ID` | Archive an item (last resort) |
+| `htd completion SHELL` | Emit a shell completion script |

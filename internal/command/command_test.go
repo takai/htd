@@ -784,7 +784,49 @@ func TestInitIdempotent(t *testing.T) {
 	}
 }
 
+// ---------- completion ----------
+
+func TestCompletionBash(t *testing.T) {
+	dir := t.TempDir()
+	out, _, err := runCmd(t, dir, "completion", "bash")
+	if err != nil {
+		t.Fatalf("completion bash: %v", err)
+	}
+	if !strings.Contains(out, "bash completion") {
+		t.Errorf("bash completion output missing expected header; got first bytes: %q", firstN(out, 120))
+	}
+}
+
+func TestCompletionZsh(t *testing.T) {
+	dir := t.TempDir()
+	out, _, err := runCmd(t, dir, "completion", "zsh")
+	if err != nil {
+		t.Fatalf("completion zsh: %v", err)
+	}
+	if !strings.Contains(out, "#compdef htd") {
+		t.Errorf("zsh completion output missing #compdef htd; got first bytes: %q", firstN(out, 120))
+	}
+}
+
+func TestCompletionDoesNotTouchPath(t *testing.T) {
+	dir := t.TempDir()
+	if _, _, err := runCmd(t, dir, "completion", "bash"); err != nil {
+		t.Fatalf("completion bash: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "items")); !os.IsNotExist(err) {
+		t.Errorf("completion should not create items/ in --path target (stat err: %v)", err)
+	}
+}
+
 // ---------- helper ----------
+
+func firstN(s string, n int) string {
+	if len(s) < n {
+		return s
+	}
+	return s[:n]
+}
+
 
 func readItemFromPath(t *testing.T, path string) (*model.Item, error) {
 	t.Helper()

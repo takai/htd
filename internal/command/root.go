@@ -36,6 +36,9 @@ func NewRootCommand() *cobra.Command {
 	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		c.cfg = config.New(path)
 		c.printer = output.New(cmd.OutOrStdout(), cmd.ErrOrStderr(), jsonMode)
+		if isCompletionCommand(cmd) {
+			return nil
+		}
 		return store.EnsureDirs(c.cfg)
 	}
 
@@ -48,6 +51,18 @@ func NewRootCommand() *cobra.Command {
 	root.AddCommand(newItemCommand(&c))
 
 	return root
+}
+
+// isCompletionCommand reports whether cmd belongs to the auto-generated
+// `completion` subtree, for which we skip directory initialization so that
+// users can generate shell scripts without side effects on --path.
+func isCompletionCommand(cmd *cobra.Command) bool {
+	for c := cmd; c != nil; c = c.Parent() {
+		if c.Name() == "completion" {
+			return true
+		}
+	}
+	return false
 }
 
 // Execute runs the root command and exits with the appropriate code.
