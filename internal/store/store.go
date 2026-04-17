@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -120,12 +121,7 @@ func matchFilter(item *model.Item, f Filter) bool {
 }
 
 func hasTag(item *model.Item, tag string) bool {
-	for _, t := range item.Tags {
-		if t == tag {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(item.Tags, tag)
 }
 
 // parse splits YAML front matter from body.

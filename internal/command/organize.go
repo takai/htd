@@ -2,6 +2,7 @@ package command
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -182,10 +183,5 @@ func parseDate(s string) (*time.Time, error) {
 }
 
 func isValidKind(k model.Kind) bool {
-	for _, v := range model.ValidKinds() {
-		if v == k {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(model.ValidKinds(), k)
 }
