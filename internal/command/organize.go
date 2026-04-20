@@ -169,7 +169,7 @@ func newOrganizeScheduleCommand(c *container) *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&due, "due", "", "Due date (YYYY-MM-DD or RFC3339)")
-	cmd.Flags().StringVar(&defer_, "defer", "", "Defer-until date")
+	cmd.Flags().StringVar(&defer_, "defer", "", "Defer-until date (YYYY-MM-DD or RFC3339)")
 	cmd.Flags().StringVar(&review, "review", "", "Next review date")
 	return cmd
 }

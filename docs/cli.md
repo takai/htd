@@ -261,8 +261,8 @@ htd organize schedule ID [--due DATE] [--defer DATE] [--review DATE]
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--due` | no | Due date (`YYYY-MM-DD` or `YYYY-MM-DDThh:mm:ss±hh:mm`) |
-| `--defer` | no | Defer-until date (item is hidden until this date) |
-| `--review` | no | Next review date |
+| `--defer` | no | Defer-until date (`YYYY-MM-DD` or `YYYY-MM-DDThh:mm:ss±hh:mm`); item is hidden until this moment |
+| `--review` | no | Next review date (`YYYY-MM-DD`) |
 
 **Behavior:**
 
@@ -270,6 +270,8 @@ htd organize schedule ID [--due DATE] [--defer DATE] [--review DATE]
 2. Set `updated_at` to the current timestamp.
 
 At least one date option must be provided. To clear a date, pass `--due ""`.
+
+When a datetime is supplied, it is preserved to the second and `engage next-action` / `reflect next-actions` sort intra-day by the exact moment. A date-only value is interpreted as midnight in the local timezone.
 
 ### 4.4 `htd organize promote`
 
@@ -329,7 +331,7 @@ htd reflect next-actions
 1. Read all files in `items/next_action/` with `status: active`.
 2. Exclude items where `defer_until` is in the future.
 3. Display: `ID`, `TITLE`, `PROJECT`, `DUE_AT`.
-4. Sort by `due_at` ascending (items without due dates last).
+4. Sort by `due_at` ascending (items without due dates last). Datetimes sort by their exact moment; date-only values sort as midnight local time.
 
 ### 5.2 `htd reflect projects`
 
@@ -528,7 +530,7 @@ htd engage next-action [--project PROJECT_ID] [--tag TAG]...
 2. Exclude items where `defer_until` is in the future.
 3. Apply `--project` and `--tag` filters if provided.
 4. Display: `ID`, `TITLE`, `PROJECT`, `DUE_AT`.
-5. Sort by `due_at` ascending (items without due dates last).
+5. Sort by `due_at` ascending (items without due dates last). Datetimes sort by their exact moment; date-only values sort as midnight local time.
 
 This command overlaps with `reflect next-actions` in content; the difference is intent (Engage = pick work; Reflect = review system) plus the filter flags above.
 
