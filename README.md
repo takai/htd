@@ -86,6 +86,7 @@ htd item get ID
 htd item list [--kind KIND] [--status STATUS] [--tag TAG] [--project PROJECT_ID]
 htd item update ID FIELD=VALUE [FIELD=VALUE]...
 htd item archive ID
+htd item restore ID
 ```
 
 ## Global options

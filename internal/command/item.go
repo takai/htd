@@ -21,6 +21,7 @@ func newItemCommand(c *container) *cobra.Command {
 		newItemListCommand(c),
 		newItemUpdateCommand(c),
 		newItemArchiveCommand(c),
+		newItemRestoreCommand(c),
 	)
 	return cmd
 }
@@ -214,6 +215,32 @@ func newItemArchiveCommand(c *container) *cobra.Command {
 				return fmt.Errorf("item %q is not active (status: %s)", itemID, item.Status)
 			}
 			item.Status = model.StatusArchived
+			item.UpdatedAt = time.Now()
+			newPath := store.PathForItem(c.cfg, item)
+			return store.Move(path, newPath, item, body)
+		},
+	}
+}
+
+func newItemRestoreCommand(c *container) *cobra.Command {
+	return &cobra.Command{
+		Use:   "restore ID",
+		Short: "Restore a terminal item to active status",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			itemID := args[0]
+			path, err := store.FindItem(c.cfg, itemID)
+			if err != nil {
+				return err
+			}
+			item, body, err := store.Read(path)
+			if err != nil {
+				return err
+			}
+			if model.IsActive(item.Status) {
+				return fmt.Errorf("item %q is already active", itemID)
+			}
+			item.Status = model.StatusActive
 			item.UpdatedAt = time.Now()
 			newPath := store.PathForItem(c.cfg, item)
 			return store.Move(path, newPath, item, body)

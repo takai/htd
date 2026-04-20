@@ -83,6 +83,7 @@ All commands accept `--json` for machine-readable output and `--path` to target 
 - `htd item list [--kind KIND] [--status STATUS] [--tag TAG] [--project PID]`
 - `htd item update ID FIELD=VALUE...` — `id` and `created_at` are protected.
 - `htd item archive ID`
+- `htd item restore ID` — undo an accidental `engage done`/`cancel`/`discard`/`archive`; brings a terminal item back to `active` and moves it to `items/<kind>/`.
 
 ## Choosing a command
 
@@ -98,6 +99,7 @@ All commands accept `--json` for machine-readable output and `--path` to target 
 | Chasing a delegated task | `/htd:engage` → drill into waiting |
 | Tickler for date X fires | `/htd:daily-review` (pulls fired ticklers into the inbox, then clarify decides) |
 | Completing a task | `htd engage done ID` (direct call is fine) |
+| "I marked the wrong item done", undo an accidental terminal transition | `htd item restore ID` |
 
 ## Interaction principles
 
