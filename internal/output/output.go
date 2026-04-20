@@ -127,6 +127,9 @@ func (p *Printer) printItemText(item *model.Item, body string) {
 	if len(item.Tags) > 0 {
 		fmt.Fprintf(p.out, "tags:       %v\n", item.Tags)
 	}
+	if len(item.Refs) > 0 {
+		fmt.Fprintf(p.out, "refs:       %v\n", item.Refs)
+	}
 	if body != "" {
 		fmt.Fprintf(p.out, "\n%s\n", body)
 	}
@@ -209,6 +212,7 @@ type itemJSON struct {
 	ReviewAt   string    `json:"review_at,omitempty"`
 	Source     string    `json:"source,omitempty"`
 	Tags       []string  `json:"tags,omitempty"`
+	Refs       []string  `json:"refs,omitempty"`
 	Body       string    `json:"body,omitempty"`
 }
 
@@ -223,6 +227,7 @@ func toItemJSON(item *model.Item, body string) itemJSON {
 		UpdatedAt: item.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		Source:    item.Source,
 		Tags:      item.Tags,
+		Refs:      item.Refs,
 		Body:      body,
 	}
 	if item.DueAt != nil {

@@ -51,4 +51,5 @@ type Item struct {
 	ReviewAt   *time.Time `yaml:"review_at,omitempty"`
 	Source     string    `yaml:"source,omitempty"`
 	Tags       []string  `yaml:"tags,omitempty"`
+	Refs       []string  `yaml:"refs,omitempty"`
 }

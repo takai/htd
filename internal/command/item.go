@@ -170,6 +170,24 @@ func applyField(item *model.Item, body *string, key, value string) error {
 			}
 			item.Tags = tags
 		}
+	case "refs":
+		// Parse YAML flow-style list: [a,b,c] or plain comma-separated
+		v := strings.TrimSpace(value)
+		v = strings.TrimPrefix(v, "[")
+		v = strings.TrimSuffix(v, "]")
+		if v == "" {
+			item.Refs = nil
+		} else {
+			parts := strings.Split(v, ",")
+			refs := make([]string, 0, len(parts))
+			for _, p := range parts {
+				p = strings.TrimSpace(p)
+				if p != "" {
+					refs = append(refs, p)
+				}
+			}
+			item.Refs = refs
+		}
 	case "due_at":
 		t, err := parseDate(value)
 		if err != nil {

@@ -25,6 +25,7 @@ func newCaptureAddCommand(c *container) *cobra.Command {
 		body   string
 		source string
 		tags   []string
+		refs   []string
 		done   bool
 	)
 
@@ -55,11 +56,15 @@ func newCaptureAddCommand(c *container) *cobra.Command {
 				Status:    status,
 				Source:    source,
 				Tags:      tags,
+				Refs:      refs,
 				CreatedAt: now,
 				UpdatedAt: now,
 			}
 			if len(tags) == 0 {
 				item.Tags = nil
+			}
+			if len(refs) == 0 {
+				item.Refs = nil
 			}
 
 			path := store.PathForItem(c.cfg, item)
@@ -75,6 +80,7 @@ func newCaptureAddCommand(c *container) *cobra.Command {
 	cmd.Flags().StringVar(&body, "body", "", "Detailed description (Markdown)")
 	cmd.Flags().StringVar(&source, "source", "", "Origin of the item")
 	cmd.Flags().StringArrayVar(&tags, "tag", nil, "Tag (repeatable)")
+	cmd.Flags().StringArrayVar(&refs, "ref", nil, "External reference URL (repeatable)")
 	cmd.Flags().BoolVar(&done, "done", false, "Capture the item as already completed (lands in archive/items/ with kind=next_action, status=done)")
 
 	return cmd

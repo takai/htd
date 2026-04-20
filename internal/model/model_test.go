@@ -87,6 +87,7 @@ func TestItemYAMLRoundTrip(t *testing.T) {
 		ReviewAt:    &review,
 		Source:      "manual",
 		Tags:        []string{"cli", "docs"},
+		Refs:        []string{"https://example.com/pr/1", "https://notion.so/x"},
 	}
 
 	data, err := yaml.Marshal(item)
@@ -117,6 +118,9 @@ func TestItemYAMLRoundTrip(t *testing.T) {
 	if len(got.Tags) != 2 || got.Tags[0] != "cli" || got.Tags[1] != "docs" {
 		t.Errorf("Tags: want [cli docs], got %v", got.Tags)
 	}
+	if len(got.Refs) != 2 || got.Refs[0] != "https://example.com/pr/1" || got.Refs[1] != "https://notion.so/x" {
+		t.Errorf("Refs: want [https://example.com/pr/1 https://notion.so/x], got %v", got.Refs)
+	}
 	if got.DueAt == nil {
 		t.Error("DueAt: want non-nil, got nil")
 	}
@@ -144,7 +148,7 @@ func TestItemYAMLOmitsNilOptionalFields(t *testing.T) {
 	}
 
 	s := string(data)
-	for _, field := range []string{"due_at", "defer_until", "review_at", "project", "source", "tags"} {
+	for _, field := range []string{"due_at", "defer_until", "review_at", "project", "source", "tags", "refs"} {
 		if contains(s, field+":") {
 			t.Errorf("YAML contains %q field but it should be omitted", field)
 		}

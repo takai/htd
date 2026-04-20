@@ -121,6 +121,44 @@ func TestCaptureAddWithOptions(t *testing.T) {
 	}
 }
 
+func TestCaptureAddWithRefs(t *testing.T) {
+	dir := setupDir(t)
+	out, _, err := runCmd(t, dir, "capture", "add",
+		"--title", "Review PR",
+		"--ref", "https://github.com/foo/bar/pull/1",
+		"--ref", "https://notion.so/x",
+	)
+	if err != nil {
+		t.Fatalf("capture add --ref: %v", err)
+	}
+	id := strings.TrimSpace(out)
+	item, _ := readItem(t, dir, id)
+	if len(item.Refs) != 2 {
+		t.Fatalf("refs: want 2, got %d (%v)", len(item.Refs), item.Refs)
+	}
+	if item.Refs[0] != "https://github.com/foo/bar/pull/1" || item.Refs[1] != "https://notion.so/x" {
+		t.Errorf("refs: got %v", item.Refs)
+	}
+}
+
+func TestCaptureAddOmitsRefsWhenAbsent(t *testing.T) {
+	dir := setupDir(t)
+	out, _, err := runCmd(t, dir, "capture", "add", "--title", "No refs")
+	if err != nil {
+		t.Fatalf("capture add: %v", err)
+	}
+	id := strings.TrimSpace(out)
+	cfg := config.New(dir)
+	p := filepath.Join(cfg.DirForKind(model.KindInbox), id+".md")
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatalf("read file: %v", err)
+	}
+	if strings.Contains(string(data), "refs:") {
+		t.Errorf("expected no refs field in YAML when unset:\n%s", string(data))
+	}
+}
+
 func TestCaptureAddDone(t *testing.T) {
 	dir := setupDir(t)
 	out, _, err := runCmd(t, dir, "capture", "add", "--title", "Quick thing", "--done")
@@ -254,6 +292,45 @@ func TestClarifyUpdate(t *testing.T) {
 	}
 	if gotBody != "new body" {
 		t.Errorf("body: want %q, got %q", "new body", gotBody)
+	}
+}
+
+func TestClarifyUpdateRefs(t *testing.T) {
+	dir := setupDir(t)
+	item := nowItem("20260417-refs_me", model.KindInbox, model.StatusActive)
+	item.Refs = []string{"https://old.example.com/1"}
+	writeItem(t, dir, item, "")
+
+	_, _, err := runCmd(t, dir, "clarify", "update", "20260417-refs_me",
+		"--ref", "https://new.example.com/a",
+		"--ref", "https://new.example.com/b",
+	)
+	if err != nil {
+		t.Fatalf("clarify update --ref: %v", err)
+	}
+
+	got, _ := readItem(t, dir, "20260417-refs_me")
+	if len(got.Refs) != 2 {
+		t.Fatalf("refs: want 2, got %d (%v)", len(got.Refs), got.Refs)
+	}
+	if got.Refs[0] != "https://new.example.com/a" || got.Refs[1] != "https://new.example.com/b" {
+		t.Errorf("refs: got %v", got.Refs)
+	}
+}
+
+func TestClarifyUpdateLeavesRefsUntouched(t *testing.T) {
+	dir := setupDir(t)
+	item := nowItem("20260417-keep_refs", model.KindInbox, model.StatusActive)
+	item.Refs = []string{"https://keep.example.com/"}
+	writeItem(t, dir, item, "")
+
+	_, _, err := runCmd(t, dir, "clarify", "update", "20260417-keep_refs", "--title", "Retitled")
+	if err != nil {
+		t.Fatalf("clarify update --title: %v", err)
+	}
+	got, _ := readItem(t, dir, "20260417-keep_refs")
+	if len(got.Refs) != 1 || got.Refs[0] != "https://keep.example.com/" {
+		t.Errorf("refs: want unchanged, got %v", got.Refs)
 	}
 }
 
@@ -1458,6 +1535,58 @@ func TestItemGet(t *testing.T) {
 	}
 }
 
+func TestItemGetShowsRefsText(t *testing.T) {
+	dir := setupDir(t)
+	item := nowItem("20260417-show_refs", model.KindNextAction, model.StatusActive)
+	item.Refs = []string{"https://example.com/pr/1", "https://notion.so/x"}
+	writeItem(t, dir, item, "")
+
+	out, _, err := runCmd(t, dir, "item", "get", "20260417-show_refs")
+	if err != nil {
+		t.Fatalf("item get: %v", err)
+	}
+	if !strings.Contains(out, "refs:") {
+		t.Errorf("item get missing refs label: %q", out)
+	}
+	if !strings.Contains(out, "https://example.com/pr/1") || !strings.Contains(out, "https://notion.so/x") {
+		t.Errorf("item get missing refs values: %q", out)
+	}
+}
+
+func TestItemGetJSONIncludesRefs(t *testing.T) {
+	dir := setupDir(t)
+	item := nowItem("20260417-json_refs", model.KindNextAction, model.StatusActive)
+	item.Refs = []string{"https://example.com/pr/1", "https://notion.so/x"}
+	writeItem(t, dir, item, "")
+
+	out, _, err := runCmd(t, dir, "--json", "item", "get", "20260417-json_refs")
+	if err != nil {
+		t.Fatalf("item get --json: %v", err)
+	}
+	var got struct {
+		Refs []string `json:"refs"`
+	}
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("unmarshal: %v\n%s", err, out)
+	}
+	if len(got.Refs) != 2 || got.Refs[0] != "https://example.com/pr/1" || got.Refs[1] != "https://notion.so/x" {
+		t.Errorf("refs: got %v", got.Refs)
+	}
+}
+
+func TestItemGetJSONOmitsRefsWhenEmpty(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260417-no_refs", model.KindInbox, model.StatusActive), "")
+
+	out, _, err := runCmd(t, dir, "--json", "item", "get", "20260417-no_refs")
+	if err != nil {
+		t.Fatalf("item get --json: %v", err)
+	}
+	if strings.Contains(out, `"refs"`) {
+		t.Errorf("expected no refs key in JSON when empty: %s", out)
+	}
+}
+
 func TestItemList(t *testing.T) {
 	dir := setupDir(t)
 	writeItem(t, dir, nowItem("20260417-list1", model.KindInbox, model.StatusActive), "")
@@ -1516,6 +1645,36 @@ func TestItemUpdateKindMovesFile(t *testing.T) {
 	got, _ := readItem(t, dir, "20260417-kindchg")
 	if got.Kind != model.KindNextAction {
 		t.Errorf("kind: want next_action, got %q", got.Kind)
+	}
+}
+
+func TestItemUpdateRefsField(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260417-refset", model.KindNextAction, model.StatusActive), "")
+
+	_, _, err := runCmd(t, dir, "item", "update", "20260417-refset",
+		"refs=[https://a.example, https://b.example, https://c.example]")
+	if err != nil {
+		t.Fatalf("item update refs=[...]: %v", err)
+	}
+	got, _ := readItem(t, dir, "20260417-refset")
+	want := []string{"https://a.example", "https://b.example", "https://c.example"}
+	if len(got.Refs) != len(want) {
+		t.Fatalf("refs: want %d, got %d (%v)", len(want), len(got.Refs), got.Refs)
+	}
+	for i, w := range want {
+		if got.Refs[i] != w {
+			t.Errorf("refs[%d]: want %q, got %q", i, w, got.Refs[i])
+		}
+	}
+
+	_, _, err = runCmd(t, dir, "item", "update", "20260417-refset", "refs=")
+	if err != nil {
+		t.Fatalf("item update refs=: %v", err)
+	}
+	got, _ = readItem(t, dir, "20260417-refset")
+	if len(got.Refs) != 0 {
+		t.Errorf("refs: want empty after clear, got %v", got.Refs)
 	}
 }
 

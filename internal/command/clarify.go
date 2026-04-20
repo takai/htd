@@ -69,6 +69,7 @@ func newClarifyUpdateCommand(c *container) *cobra.Command {
 	var (
 		title string
 		body  string
+		refs  []string
 	)
 
 	cmd := &cobra.Command{
@@ -76,8 +77,8 @@ func newClarifyUpdateCommand(c *container) *cobra.Command {
 		Short: "Update an inbox item",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !cmd.Flags().Changed("title") && !cmd.Flags().Changed("body") {
-				return fmt.Errorf("at least one of --title or --body must be provided")
+			if !cmd.Flags().Changed("title") && !cmd.Flags().Changed("body") && !cmd.Flags().Changed("ref") {
+				return fmt.Errorf("at least one of --title, --body, or --ref must be provided")
 			}
 			itemID := args[0]
 			path, err := store.FindItem(c.cfg, itemID)
@@ -97,6 +98,13 @@ func newClarifyUpdateCommand(c *container) *cobra.Command {
 			if cmd.Flags().Changed("body") {
 				existingBody = body
 			}
+			if cmd.Flags().Changed("ref") {
+				if len(refs) == 0 {
+					item.Refs = nil
+				} else {
+					item.Refs = refs
+				}
+			}
 			item.UpdatedAt = time.Now()
 			return store.Write(path, item, existingBody)
 		},
@@ -104,6 +112,7 @@ func newClarifyUpdateCommand(c *container) *cobra.Command {
 
 	cmd.Flags().StringVar(&title, "title", "", "New title")
 	cmd.Flags().StringVar(&body, "body", "", "New body content")
+	cmd.Flags().StringArrayVar(&refs, "ref", nil, "New reference URLs (repeatable; replaces existing refs)")
 	return cmd
 }
 
