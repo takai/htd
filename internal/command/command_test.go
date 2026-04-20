@@ -299,6 +299,192 @@ func TestOrganizeSchedule(t *testing.T) {
 	}
 }
 
+func TestOrganizePromote(t *testing.T) {
+	dir := setupDir(t)
+	parent := nowItem("20260420-launch_cli", model.KindInbox, model.StatusActive)
+	parent.Title = "Launch CLI"
+	writeItem(t, dir, parent, "")
+
+	out, _, err := runCmd(t, dir, "organize", "promote", "20260420-launch_cli",
+		"--child", "Verify on staging",
+		"--child", "Release to production",
+	)
+	if err != nil {
+		t.Fatalf("organize promote: %v", err)
+	}
+
+	gotParent, _ := readItem(t, dir, "20260420-launch_cli")
+	if gotParent.Kind != model.KindProject {
+		t.Errorf("parent kind: want project, got %q", gotParent.Kind)
+	}
+	if gotParent.Status != model.StatusActive {
+		t.Errorf("parent status: want active, got %q", gotParent.Status)
+	}
+	cfg := config.New(dir)
+	projectPath := filepath.Join(cfg.DirForKind(model.KindProject), "20260420-launch_cli.md")
+	if _, err := os.Stat(projectPath); err != nil {
+		t.Errorf("parent not moved to project dir: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("want 3 output lines (parent + 2 children), got %d: %q", len(lines), out)
+	}
+	if lines[0] != "20260420-launch_cli" {
+		t.Errorf("line 0: want parent ID, got %q", lines[0])
+	}
+	childIDs := []string{lines[1], lines[2]}
+
+	today := time.Now().Format("20060102")
+	wantSuffixes := []string{"-verify_on_staging", "-release_to_production"}
+	for i, id := range childIDs {
+		if !strings.HasPrefix(id, today+"-") {
+			t.Errorf("child %d ID %q should start with today's date", i, id)
+		}
+		if !strings.HasSuffix(id, wantSuffixes[i]) {
+			t.Errorf("child %d ID %q should end with %q", i, id, wantSuffixes[i])
+		}
+		child, _ := readItem(t, dir, id)
+		if child.Kind != model.KindNextAction {
+			t.Errorf("child %s kind: want next_action, got %q", id, child.Kind)
+		}
+		if child.Status != model.StatusActive {
+			t.Errorf("child %s status: want active, got %q", id, child.Status)
+		}
+		if child.Project != "20260420-launch_cli" {
+			t.Errorf("child %s project: want parent ID, got %q", id, child.Project)
+		}
+	}
+	if childIDs[0] == childIDs[1] {
+		t.Errorf("expected distinct child IDs, got duplicate %q", childIDs[0])
+	}
+}
+
+func TestOrganizePromoteParentNotFound(t *testing.T) {
+	dir := setupDir(t)
+	_, _, err := runCmd(t, dir, "organize", "promote", "20260420-ghost", "--child", "X")
+	if !store.IsNotFound(err) {
+		t.Errorf("expected NotFoundError, got %v", err)
+	}
+}
+
+func TestOrganizePromoteParentTerminal(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260420-done_parent", model.KindNextAction, model.StatusDone), "")
+
+	_, _, err := runCmd(t, dir, "organize", "promote", "20260420-done_parent", "--child", "X")
+	if err == nil {
+		t.Error("expected error when promoting a terminal item")
+	}
+}
+
+func TestOrganizePromoteAlreadyProject(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260420-existing_proj", model.KindProject, model.StatusActive), "")
+
+	out, _, err := runCmd(t, dir, "organize", "promote", "20260420-existing_proj", "--child", "Next step")
+	if err != nil {
+		t.Fatalf("organize promote: %v", err)
+	}
+
+	gotParent, _ := readItem(t, dir, "20260420-existing_proj")
+	if gotParent.Kind != model.KindProject {
+		t.Errorf("parent kind: want project, got %q", gotParent.Kind)
+	}
+
+	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("want 2 output lines, got %d: %q", len(lines), out)
+	}
+	child, _ := readItem(t, dir, lines[1])
+	if child.Project != "20260420-existing_proj" {
+		t.Errorf("child project: want parent ID, got %q", child.Project)
+	}
+}
+
+func TestOrganizePromoteFromNextAction(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260420-was_na", model.KindNextAction, model.StatusActive), "")
+
+	_, _, err := runCmd(t, dir, "organize", "promote", "20260420-was_na", "--child", "First step")
+	if err != nil {
+		t.Fatalf("organize promote: %v", err)
+	}
+	got, _ := readItem(t, dir, "20260420-was_na")
+	if got.Kind != model.KindProject {
+		t.Errorf("kind: want project, got %q", got.Kind)
+	}
+}
+
+func TestOrganizePromoteRequiresChild(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260420-no_kids", model.KindInbox, model.StatusActive), "")
+
+	_, _, err := runCmd(t, dir, "organize", "promote", "20260420-no_kids")
+	if err == nil {
+		t.Error("expected error when --child is omitted")
+	}
+}
+
+func TestOrganizePromoteEmptyChildTitle(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260420-empty_kid", model.KindInbox, model.StatusActive), "")
+
+	_, _, err := runCmd(t, dir, "organize", "promote", "20260420-empty_kid", "--child", "")
+	if err == nil {
+		t.Error("expected error when --child title is empty")
+	}
+}
+
+func TestOrganizePromoteChildIDCollision(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260420-parent", model.KindInbox, model.StatusActive), "")
+
+	out, _, err := runCmd(t, dir, "organize", "promote", "20260420-parent",
+		"--child", "Same Title",
+		"--child", "Same Title",
+	)
+	if err != nil {
+		t.Fatalf("organize promote: %v", err)
+	}
+	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("want 3 lines, got %d: %q", len(lines), out)
+	}
+	if lines[1] == lines[2] {
+		t.Errorf("children must have distinct IDs, got duplicate %q", lines[1])
+	}
+	if !strings.HasSuffix(lines[2], "_2") {
+		t.Errorf("second colliding child should end with _2, got %q", lines[2])
+	}
+}
+
+func TestOrganizePromoteJSON(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260420-json_parent", model.KindInbox, model.StatusActive), "")
+
+	out, _, err := runCmd(t, dir, "--json", "organize", "promote", "20260420-json_parent",
+		"--child", "Alpha",
+		"--child", "Beta",
+	)
+	if err != nil {
+		t.Fatalf("organize promote --json: %v", err)
+	}
+	var obj struct {
+		Parent   string   `json:"parent"`
+		Children []string `json:"children"`
+	}
+	if err := json.Unmarshal([]byte(out), &obj); err != nil {
+		t.Fatalf("parse json: %v (out=%q)", err, out)
+	}
+	if obj.Parent != "20260420-json_parent" {
+		t.Errorf("parent: want %q, got %q", "20260420-json_parent", obj.Parent)
+	}
+	if len(obj.Children) != 2 {
+		t.Fatalf("children: want 2, got %d", len(obj.Children))
+	}
+}
+
 // ---------- engage ----------
 
 func TestEngageDone(t *testing.T) {

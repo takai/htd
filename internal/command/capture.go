@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/takai/htd/internal/id"
 	"github.com/takai/htd/internal/model"
 	"github.com/takai/htd/internal/store"
 )
@@ -69,18 +68,3 @@ func newCaptureAddCommand(c *container) *cobra.Command {
 	return cmd
 }
 
-// generateUniqueID generates an ID and appends a suffix if a collision exists.
-func generateUniqueID(c *container, title string, now time.Time) string {
-	base := id.Generate(title, now)
-	candidate := base
-	for i := 2; ; i++ {
-		path := store.PathForItem(c.cfg, &model.Item{ID: candidate, Kind: model.KindInbox, Status: model.StatusActive})
-		if _, err := store.FindItem(c.cfg, candidate); err != nil && store.IsNotFound(err) {
-			// Also check that the computed path doesn't exist (covers all kinds)
-			_ = path
-			break
-		}
-		candidate = fmt.Sprintf("%s_%d", base, i)
-	}
-	return candidate
-}
