@@ -69,12 +69,12 @@ All commands accept `--json` for machine-readable output and `--path` to target 
 - `htd reflect projects [--stalled]`
 - `htd reflect waiting`
 - `htd reflect review` — items whose `review_at` is due.
-- `htd reflect done --since YYYY-MM-DD`
+- `htd reflect log --since YYYY-MM-DD [--until DATE] [--kind KIND] [--tag TAG]... [--status STATUS]...` — recently resolved items (activity log). Defaults to `--status done`.
+- `htd reflect tickler [--pull]` — ticklers whose `defer_until` (or `review_at` fallback) is today or past. With `--pull`, move them into the inbox for re-clarification (clears `defer_until`, keeps `review_at`).
 
 **Engage** (act on the system)
 - `htd engage next-action [--project ID] [--tag T]...` — what's ready to work on now.
 - `htd engage waiting [--stale-days N]` — waiting-for items untouched ≥ N days (default 7). JSON includes `age_days`.
-- `htd engage tickler` — ticklers whose `defer_until` (or `review_at` fallback) is today or past.
 - `htd engage done ID`
 - `htd engage cancel ID`
 
@@ -93,9 +93,10 @@ All commands accept `--json` for machine-readable output and `--path` to target 
 | "my inbox is full", "process my inbox" | `/htd:clarify` (walks item-by-item) |
 | "categorize this", "link this to project Y", "set a due date" | `/htd:organize` |
 | "weekly review", "how's my system looking", "what's stalled" | `/htd:reflect` |
+| "daily review", "morning routine", "let's start the day" | `/htd:daily-review` |
 | "what should I work on now", "what's on my plate today" | `/htd:engage` |
 | Chasing a delegated task | `/htd:engage` → drill into waiting |
-| Tickler for date X fires | `/htd:engage` → drill into ticklers; promote to next_action |
+| Tickler for date X fires | `/htd:daily-review` (pulls fired ticklers into the inbox, then clarify decides) |
 | Completing a task | `htd engage done ID` (direct call is fine) |
 
 ## Interaction principles
