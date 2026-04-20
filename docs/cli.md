@@ -65,7 +65,7 @@ Resolution order for the root directory: `--path` (if given) → `$HTD_PATH` (if
 Add a new item to the inbox.
 
 ```
-htd capture add --title TEXT [--body TEXT] [--source NAME] [--tag TAG]... [--done]
+htd capture add --title TEXT [--body TEXT] [--source NAME] [--tag TAG]... [--ref URL]... [--done]
 ```
 
 | Option | Required | Description |
@@ -74,6 +74,7 @@ htd capture add --title TEXT [--body TEXT] [--source NAME] [--tag TAG]... [--don
 | `--body` | no | Detailed description (Markdown) |
 | `--source` | no | Origin of the item (e.g., `email`, `meeting`, `slack`) |
 | `--tag` | no | Tag to attach; repeatable for multiple tags |
+| `--ref` | no | External reference URL (e.g., PR, ticket, doc); repeatable |
 | `--done` | no | Capture the item as already completed (see below) |
 
 **Behavior:**
@@ -89,6 +90,9 @@ htd capture add --title TEXT [--body TEXT] [--source NAME] [--tag TAG]... [--don
 ```
 $ htd capture add --title "Write the man page" --source manual --tag cli --tag docs
 20260417-write_the_man_page
+
+$ htd capture add --title "Review PR #42" --ref https://github.com/foo/bar/pull/42
+20260421-review_pr_42
 ```
 
 **`--done` behavior:**
@@ -101,7 +105,7 @@ When `--done` is passed, the item is captured as already completed instead of en
 4. Write the file directly to `archive/items/<id>.md` (no temporary stop in `items/inbox/`).
 5. Print the created ID to stdout.
 
-`--body`, `--source`, and `--tag` still apply when `--done` is set, so metadata is preserved on the archived item.
+`--body`, `--source`, `--tag`, and `--ref` still apply when `--done` is set, so metadata is preserved on the archived item.
 
 **Example:**
 
@@ -155,13 +159,14 @@ htd clarify show ID
 Update the content of an inbox item.
 
 ```
-htd clarify update ID [--title TEXT] [--body TEXT]
+htd clarify update ID [--title TEXT] [--body TEXT] [--ref URL]...
 ```
 
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--title` | no | New title |
 | `--body` | no | New body content |
+| `--ref` | no | New reference URL; repeatable. Each invocation of this command replaces the full `refs` list with the supplied values. Pass no `--ref` at all to leave existing refs untouched. |
 
 **Behavior:**
 
@@ -170,7 +175,7 @@ htd clarify update ID [--title TEXT] [--body TEXT]
 3. Set `updated_at` to the current timestamp.
 4. Write the file back.
 
-At least one of `--title` or `--body` must be provided.
+At least one of `--title`, `--body`, or `--ref` must be provided.
 
 ### 3.4 `htd clarify discard`
 
@@ -623,6 +628,7 @@ htd item update ID FIELD=VALUE [FIELD=VALUE]...
 ```
 $ htd item update 20260417-write_the_man_page kind=next_action
 $ htd item update 20260417-write_the_man_page tags='[cli,docs,v1]'
+$ htd item update 20260417-write_the_man_page refs='[https://github.com/foo/bar/pull/42]'
 ```
 
 ### 7.4 `htd item archive`

@@ -26,6 +26,7 @@ An Item is the primary data type. It represents any actionable or incomplete pie
 | `review_at` | date | no | yes | Next review date |
 | `source` | string | no | yes | Origin of the item (e.g., `manual`, `email`, `slack`) |
 | `tags` | list of strings | no | yes | Arbitrary tags for filtering |
+| `refs` | list of strings | no | yes | External reference URLs (PRs, tickets, docs, etc.) |
 
 The Markdown body (content after the front matter `---` delimiter) stores the detailed description. This is referred to as `body` in CLI options but is not a front matter field.
 
@@ -192,6 +193,7 @@ updated_at: 2026-04-17T09:30:00+09:00
 review_at: 2026-04-20
 source: manual
 tags: [cli, docs]
+refs: [https://github.com/foo/bar/pull/42]
 ---
 
 Detailed description of the task goes here.
