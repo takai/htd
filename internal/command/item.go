@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/takai/htd/internal/model"
+	"github.com/takai/htd/internal/query"
 	"github.com/takai/htd/internal/store"
 )
 
@@ -52,6 +53,7 @@ func newItemListCommand(c *container) *cobra.Command {
 		statusStr string
 		tag       string
 		projectID string
+		queryStr  string
 	)
 
 	cmd := &cobra.Command{
@@ -77,9 +79,28 @@ func newItemListCommand(c *container) *cobra.Command {
 				f.Status = &s
 			}
 
-			items, err := store.List(c.cfg, f)
+			if queryStr == "" {
+				items, err := store.List(c.cfg, f)
+				if err != nil {
+					return err
+				}
+				c.printer.PrintItems(items)
+				return nil
+			}
+
+			q, err := query.Parse(queryStr)
+			if err != nil {
+				return fmt.Errorf("invalid --query: %w", err)
+			}
+			results, err := store.ListWithBody(c.cfg, f)
 			if err != nil {
 				return err
+			}
+			items := make([]*model.Item, 0, len(results))
+			for _, r := range results {
+				if q.Match(r.Item, r.Body) {
+					items = append(items, r.Item)
+				}
 			}
 			c.printer.PrintItems(items)
 			return nil
@@ -90,6 +111,7 @@ func newItemListCommand(c *container) *cobra.Command {
 	cmd.Flags().StringVar(&statusStr, "status", "", "Filter by status (default: active)")
 	cmd.Flags().StringVar(&tag, "tag", "", "Filter by tag")
 	cmd.Flags().StringVar(&projectID, "project", "", "Filter by project ID")
+	cmd.Flags().StringVar(&queryStr, "query", "", "Filter with query expression (see docs/cli.md §7.2.1)")
 	return cmd
 }
 

@@ -302,6 +302,42 @@ func TestListByProject(t *testing.T) {
 	}
 }
 
+// ---------- ListWithBody ----------
+
+func TestListWithBody(t *testing.T) {
+	cfg := newTestCfg(t)
+	if err := store.EnsureDirs(cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	it1 := makeItem("20260417-a", model.KindInbox, model.StatusActive)
+	it2 := makeItem("20260417-b", model.KindInbox, model.StatusActive)
+	if err := store.Write(store.PathForItem(cfg, it1), it1, "first body"); err != nil {
+		t.Fatalf("Write a: %v", err)
+	}
+	if err := store.Write(store.PathForItem(cfg, it2), it2, "second body"); err != nil {
+		t.Fatalf("Write b: %v", err)
+	}
+
+	got, err := store.ListWithBody(cfg, store.Filter{})
+	if err != nil {
+		t.Fatalf("ListWithBody: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("ListWithBody: got %d items, want 2", len(got))
+	}
+	bodies := map[string]string{}
+	for _, r := range got {
+		bodies[r.Item.ID] = r.Body
+	}
+	if bodies["20260417-a"] != "first body" {
+		t.Errorf("body for a: got %q, want %q", bodies["20260417-a"], "first body")
+	}
+	if bodies["20260417-b"] != "second body" {
+		t.Errorf("body for b: got %q, want %q", bodies["20260417-b"], "second body")
+	}
+}
+
 // ---------- helpers ----------
 
 func makeItem(id string, kind model.Kind, status model.Status) *model.Item {

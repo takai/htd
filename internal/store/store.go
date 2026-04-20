@@ -21,6 +21,15 @@ type Filter struct {
 	ProjectID string
 }
 
+// ItemWithBody bundles an item with its Markdown body as read from disk.
+// Callers that need body-level predicates (e.g. the --query DSL) should
+// use ListWithBody so the body is returned alongside the item in a single
+// read per file.
+type ItemWithBody struct {
+	Item *model.Item
+	Body string
+}
+
 func Read(path string) (*model.Item, string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -49,6 +58,24 @@ func Move(src, dst string, item *model.Item, body string) error {
 }
 
 func List(cfg *config.Config, filter Filter) ([]*model.Item, error) {
+	results, err := listScan(cfg, filter)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]*model.Item, len(results))
+	for i, r := range results {
+		items[i] = r.Item
+	}
+	return items, nil
+}
+
+// ListWithBody is like List but returns each item alongside its Markdown
+// body, read in the same pass. Results are sorted by CreatedAt ascending.
+func ListWithBody(cfg *config.Config, filter Filter) ([]ItemWithBody, error) {
+	return listScan(cfg, filter)
+}
+
+func listScan(cfg *config.Config, filter Filter) ([]ItemWithBody, error) {
 	var dirs []string
 
 	if filter.Kind != nil {
@@ -65,7 +92,7 @@ func List(cfg *config.Config, filter Filter) ([]*model.Item, error) {
 		dirs = append(dirs, cfg.ArchiveItemsDir())
 	}
 
-	var items []*model.Item
+	var results []ItemWithBody
 	seen := make(map[string]bool)
 
 	for _, dir := range dirs {
@@ -86,7 +113,7 @@ func List(cfg *config.Config, filter Filter) ([]*model.Item, error) {
 			}
 			seen[path] = true
 
-			item, _, err := Read(path)
+			item, body, err := Read(path)
 			if err != nil {
 				return nil, err
 			}
@@ -94,14 +121,14 @@ func List(cfg *config.Config, filter Filter) ([]*model.Item, error) {
 			if !matchFilter(item, filter) {
 				continue
 			}
-			items = append(items, item)
+			results = append(results, ItemWithBody{Item: item, Body: body})
 		}
 	}
 
-	sort.Slice(items, func(i, j int) bool {
-		return items[i].CreatedAt.Before(items[j].CreatedAt)
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Item.CreatedAt.Before(results[j].Item.CreatedAt)
 	})
-	return items, nil
+	return results, nil
 }
 
 func matchFilter(item *model.Item, f Filter) bool {
