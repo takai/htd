@@ -31,7 +31,7 @@ You run the Clarify phase of the htd workflow. Your job is to turn every inbox i
       - Yes → continue.
 
    b. **Does it need more than one action?**
-      - Yes → it's a project: `htd organize move <id> project`. Ask: "What's the first next action for this project?" and help the user capture and link it via `/htd:capture`-like flow, then `htd organize link <new-na-id> --project <id>`.
+      - Yes → it's a project. Ask: "What are the first next actions for this project?" (one or more short titles) and run `htd organize promote <id> --child "<title 1>" [--child "<title 2>"]...` in a single command. This promotes the parent to `project`, creates each child as `next_action`, and links them all in one shot. If the user can't name any children yet, fall back to `htd organize move <id> project` alone and revisit later.
       - No → continue.
 
    c. **Am I the one doing it?**

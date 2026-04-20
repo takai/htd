@@ -20,6 +20,7 @@ func newOrganizeCommand(c *container) *cobra.Command {
 		newOrganizeMoveCommand(c),
 		newOrganizeLinkCommand(c),
 		newOrganizeScheduleCommand(c),
+		newOrganizePromoteCommand(c),
 	)
 	return cmd
 }
@@ -184,4 +185,79 @@ func parseDate(s string) (*time.Time, error) {
 
 func isValidKind(k model.Kind) bool {
 	return slices.Contains(model.ValidKinds(), k)
+}
+
+func newOrganizePromoteCommand(c *container) *cobra.Command {
+	var children []string
+
+	cmd := &cobra.Command{
+		Use:   "promote ID",
+		Short: "Promote an item to a project and create linked next-action children",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(children) == 0 {
+				return fmt.Errorf("at least one --child is required")
+			}
+			for _, title := range children {
+				if title == "" {
+					return fmt.Errorf("--child title must not be empty")
+				}
+			}
+
+			parentID := args[0]
+			parentPath, err := store.FindItem(c.cfg, parentID)
+			if err != nil {
+				return err
+			}
+			parent, parentBody, err := store.Read(parentPath)
+			if err != nil {
+				return err
+			}
+			if !model.IsActive(parent.Status) {
+				return fmt.Errorf("cannot promote item with status %q", parent.Status)
+			}
+
+			now := time.Now()
+
+			if parent.Kind != model.KindProject {
+				parent.Kind = model.KindProject
+				parent.UpdatedAt = now
+				newPath := store.PathForItem(c.cfg, parent)
+				if parentPath == newPath {
+					if err := store.Write(parentPath, parent, parentBody); err != nil {
+						return err
+					}
+				} else {
+					if err := store.Move(parentPath, newPath, parent, parentBody); err != nil {
+						return err
+					}
+				}
+			}
+
+			childIDs := make([]string, 0, len(children))
+			for _, title := range children {
+				childID := generateUniqueID(c, title, now)
+				child := &model.Item{
+					ID:        childID,
+					Title:     title,
+					Kind:      model.KindNextAction,
+					Status:    model.StatusActive,
+					Project:   parent.ID,
+					CreatedAt: now,
+					UpdatedAt: now,
+				}
+				childPath := store.PathForItem(c.cfg, child)
+				if err := store.Write(childPath, child, ""); err != nil {
+					return err
+				}
+				childIDs = append(childIDs, childID)
+			}
+
+			c.printer.PrintPromote(parent.ID, childIDs)
+			return nil
+		},
+	}
+
+	cmd.Flags().StringArrayVar(&children, "child", nil, "Child next-action title (repeatable; at least one required)")
+	return cmd
 }

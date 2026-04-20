@@ -30,6 +30,24 @@ func (p *Printer) PrintID(id string) {
 	fmt.Fprintln(p.out, id)
 }
 
+// PrintPromote prints the result of `organize promote`: the parent ID followed
+// by each child ID, one per line. In JSON mode, emits a single object of shape
+// {"parent": "...", "children": [...]}.
+func (p *Printer) PrintPromote(parent string, children []string) {
+	if p.json {
+		data, _ := json.Marshal(struct {
+			Parent   string   `json:"parent"`
+			Children []string `json:"children"`
+		}{Parent: parent, Children: children})
+		fmt.Fprintln(p.out, string(data))
+		return
+	}
+	fmt.Fprintln(p.out, parent)
+	for _, id := range children {
+		fmt.Fprintln(p.out, id)
+	}
+}
+
 func (p *Printer) PrintPaths(paths []string) {
 	if p.json {
 		data, _ := json.Marshal(paths)

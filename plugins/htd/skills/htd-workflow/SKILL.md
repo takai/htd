@@ -61,6 +61,7 @@ All commands accept `--json` for machine-readable output and `--path` to target 
 - `htd organize move ID KIND` — KIND ∈ {next_action, project, waiting_for, someday, tickler}; cannot target `inbox`.
 - `htd organize link ID --project PROJECT_ID` — empty string to unlink.
 - `htd organize schedule ID [--due DATE] [--defer DATE] [--review DATE]` — empty string to clear. Dates accept `YYYY-MM-DD` or RFC 3339.
+- `htd organize promote ID --child TITLE [--child TITLE]...` — one-shot promote an item to a project and create linked next-action children. Prefer this over the move+capture+link chain when clarifying an item that clearly needs sub-actions.
 
 **Reflect** (review the system)
 - `htd reflect next-actions` — all active next actions, deferred hidden.

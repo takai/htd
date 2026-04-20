@@ -243,6 +243,45 @@ htd organize schedule ID [--due DATE] [--defer DATE] [--review DATE]
 
 At least one date option must be provided. To clear a date, pass `--due ""`.
 
+### 4.4 `htd organize promote`
+
+Promote an item to a project in one shot, creating and linking initial next-action children.
+
+```
+htd organize promote ID --child TITLE [--child TITLE]...
+```
+
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--child` | yes | Title of a next-action child to create and link; repeatable (at least one required) |
+
+**Behavior:**
+
+1. Find the parent item across all `items/<kind>/` directories.
+2. If the parent's `kind` is not already `project`, set `kind: project`, update `updated_at`, and move the file to `items/project/<id>.md`.
+3. For each `--child TITLE`, in order:
+   - Generate an ID via the usual `YYYYMMDD-<slug>` rule, with collision suffixing (`_2`, `_3`, ...) so same-titled siblings stay distinct.
+   - Create an item with `kind: next_action`, `status: active`, `project: <parent-id>`, and both timestamps set to now.
+   - Write it to `items/next_action/<id>.md`.
+4. Print the parent ID followed by each child ID, one per line. With `--json`, print a single object of shape `{"parent": "<id>", "children": ["<id>", ...]}`.
+
+**Constraints:**
+
+- The parent must exist and have an active status; terminal items cannot be promoted.
+- If the parent is already `kind: project`, the command skips the kind change and still creates/links the requested children (idempotent parent, additive children).
+- This command only creates next-action children; to promote a parent without adding children, use `organize move ID project`.
+
+**Example:**
+
+```
+$ htd organize promote 20260420-launch_cli \
+    --child "Verify on staging" \
+    --child "Release to production"
+20260420-launch_cli
+20260420-verify_on_staging
+20260420-release_to_production
+```
+
 ---
 
 ## 5. Reflect
@@ -612,6 +651,7 @@ htd completion zsh > "${fpath[1]}/_htd"
 | `htd organize move ID KIND` | Change item category |
 | `htd organize link ID --project PID` | Link item to a project |
 | `htd organize schedule ID` | Set dates on an item |
+| `htd organize promote ID --child TITLE...` | Promote to a project with next-action children |
 | `htd reflect next-actions` | List active next actions |
 | `htd reflect projects` | List active projects |
 | `htd reflect waiting` | List waiting-for items |
