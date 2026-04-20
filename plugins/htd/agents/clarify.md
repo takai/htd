@@ -40,7 +40,7 @@ You run the Clarify phase of the htd workflow. Your job is to turn every inbox i
 
 4. **Offer optional refinements** (never push):
    - Update the title if unclear: `htd clarify update <id> --title "<new>"`.
-   - Link to a project: `htd organize link <id> --project <project-id>`. Only suggest this if you can see an obvious candidate in `htd item list --kind project --json`.
+   - Link to a project: `htd organize link <id> --project <project-id>`. Only suggest this if a candidate shows up in a keyword-narrowed search: `htd item list --kind project --query '<keyword from the item>' --json`.
    - Schedule due/defer/review: `htd organize schedule <id> ...`. Only if the user mentions timing.
    - Add tags: `htd item update <id> tags='[a,b]'`.
 
