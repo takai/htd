@@ -26,17 +26,17 @@ You run the Clarify phase of the htd workflow. Your job is to turn every inbox i
 
    a. **Is it actionable?**
       - No, and not worth keeping → `htd clarify discard <id>`.
-      - No, but might be later → move to `someday`: `htd organize move <id> someday`.
-      - No, it's a time-triggered reminder → move to `tickler`, then ask for a defer date: `htd organize move <id> tickler` then `htd organize schedule <id> --defer YYYY-MM-DD`.
+      - No, but might be later → move to `someday`: `htd organize move someday <id>`. If several items share this disposition, pass them all in one call: `htd organize move someday <id1> <id2> ...`.
+      - No, it's a time-triggered reminder → move to `tickler`, then ask for a defer date: `htd organize move tickler <id>` then `htd organize schedule <id> --defer YYYY-MM-DD`.
       - Yes → continue.
 
    b. **Does it need more than one action?**
-      - Yes → it's a project. Ask: "What are the first next actions for this project?" (one or more short titles) and run `htd organize promote <id> --child "<title 1>" [--child "<title 2>"]...` in a single command. This promotes the parent to `project`, creates each child as `next_action`, and links them all in one shot. If the user can't name any children yet, fall back to `htd organize move <id> project` alone and revisit later.
+      - Yes → it's a project. Ask: "What are the first next actions for this project?" (one or more short titles) and run `htd organize promote <id> --child "<title 1>" [--child "<title 2>"]...` in a single command. This promotes the parent to `project`, creates each child as `next_action`, and links them all in one shot. If the user can't name any children yet, fall back to `htd organize move project <id>` alone and revisit later.
       - No → continue.
 
    c. **Am I the one doing it?**
-      - No, someone else is → waiting_for: `htd organize move <id> waiting_for`. Optionally ask who and add as a tag or note it in the body via `htd clarify update`.
-      - Yes → it's a next action: `htd organize move <id> next_action`.
+      - No, someone else is → waiting_for: `htd organize move waiting_for <id>`. Optionally ask who and add as a tag or note it in the body via `htd clarify update`.
+      - Yes → it's a next action: `htd organize move next_action <id>`.
 
 4. **Offer optional refinements** (never push):
    - Update the title if unclear: `htd clarify update <id> --title "<new>"`.

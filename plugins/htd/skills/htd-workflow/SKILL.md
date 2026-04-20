@@ -59,7 +59,7 @@ All commands accept `--json` for machine-readable output and `--path` to target 
 - `htd clarify discard ID`
 
 **Organize**
-- `htd organize move ID KIND` — KIND ∈ {next_action, project, waiting_for, someday, tickler}; cannot target `inbox`.
+- `htd organize move KIND ID [ID...]` — KIND ∈ {next_action, project, waiting_for, someday, tickler}; cannot target `inbox`. Accepts multiple IDs for a shared disposition in one shot.
 - `htd organize link ID --project PROJECT_ID` — empty string to unlink.
 - `htd organize schedule ID [--due DATE] [--defer DATE] [--review DATE]` — empty string to clear. Dates accept `YYYY-MM-DD` or RFC 3339.
 - `htd organize promote ID --child TITLE [--child TITLE]...` — one-shot promote an item to a project and create linked next-action children. Prefer this over the move+capture+link chain when clarifying an item that clearly needs sub-actions.
@@ -75,8 +75,8 @@ All commands accept `--json` for machine-readable output and `--path` to target 
 **Engage** (act on the system)
 - `htd engage next-action [--project ID] [--tag T]...` — what's ready to work on now.
 - `htd engage waiting [--stale-days N]` — waiting-for items untouched ≥ N days (default 7). JSON includes `age_days`.
-- `htd engage done ID`
-- `htd engage cancel ID`
+- `htd engage done ID [ID...]` — accepts multiple IDs.
+- `htd engage cancel ID [ID...]` — accepts multiple IDs.
 
 **Item (low-level CRUD)** — use for scripting; workflow commands are preferred.
 - `htd item get ID`

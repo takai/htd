@@ -294,7 +294,7 @@ func TestOrganizeMove(t *testing.T) {
 	dir := setupDir(t)
 	writeItem(t, dir, nowItem("20260417-move_me", model.KindInbox, model.StatusActive), "")
 
-	_, _, err := runCmd(t, dir, "organize", "move", "20260417-move_me", "next_action")
+	_, _, err := runCmd(t, dir, "organize", "move", "next_action", "20260417-move_me")
 	if err != nil {
 		t.Fatalf("organize move: %v", err)
 	}
@@ -315,9 +315,52 @@ func TestOrganizeMoveToInboxFails(t *testing.T) {
 	dir := setupDir(t)
 	writeItem(t, dir, nowItem("20260417-some", model.KindNextAction, model.StatusActive), "")
 
-	_, _, err := runCmd(t, dir, "organize", "move", "20260417-some", "inbox")
+	_, _, err := runCmd(t, dir, "organize", "move", "inbox", "20260417-some")
 	if err == nil {
 		t.Error("expected error when moving to inbox")
+	}
+}
+
+func TestOrganizeMoveBulk(t *testing.T) {
+	dir := setupDir(t)
+	for _, id := range []string{"20260417-bm1", "20260417-bm2", "20260417-bm3"} {
+		writeItem(t, dir, nowItem(id, model.KindInbox, model.StatusActive), "")
+	}
+
+	_, _, err := runCmd(t, dir, "organize", "move", "someday",
+		"20260417-bm1", "20260417-bm2", "20260417-bm3")
+	if err != nil {
+		t.Fatalf("organize move (bulk): %v", err)
+	}
+
+	for _, id := range []string{"20260417-bm1", "20260417-bm2", "20260417-bm3"} {
+		got, _ := readItem(t, dir, id)
+		if got.Kind != model.KindSomeday {
+			t.Errorf("%s kind: want someday, got %q", id, got.Kind)
+		}
+	}
+}
+
+func TestOrganizeMoveBulkStopsOnFirstError(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260417-bm_ok", model.KindInbox, model.StatusActive), "")
+
+	_, _, err := runCmd(t, dir, "organize", "move", "someday",
+		"20260417-bm_ok", "20260417-bm_missing")
+	if err == nil {
+		t.Fatal("expected error when an ID is missing")
+	}
+	got, _ := readItem(t, dir, "20260417-bm_ok")
+	if got.Kind != model.KindSomeday {
+		t.Errorf("earlier ID should be moved before failure: got kind %q", got.Kind)
+	}
+}
+
+func TestOrganizeMoveRequiresID(t *testing.T) {
+	dir := setupDir(t)
+	_, _, err := runCmd(t, dir, "organize", "move", "someday")
+	if err == nil {
+		t.Error("expected error when no IDs are given")
 	}
 }
 
@@ -557,6 +600,25 @@ func TestEngageDone(t *testing.T) {
 	}
 }
 
+func TestEngageDoneBulk(t *testing.T) {
+	dir := setupDir(t)
+	ids := []string{"20260417-bd1", "20260417-bd2", "20260417-bd3"}
+	for _, id := range ids {
+		writeItem(t, dir, nowItem(id, model.KindNextAction, model.StatusActive), "")
+	}
+
+	_, _, err := runCmd(t, dir, append([]string{"engage", "done"}, ids...)...)
+	if err != nil {
+		t.Fatalf("engage done (bulk): %v", err)
+	}
+	for _, id := range ids {
+		got, _ := readItem(t, dir, id)
+		if got.Status != model.StatusDone {
+			t.Errorf("%s status: want done, got %q", id, got.Status)
+		}
+	}
+}
+
 func TestEngageCancel(t *testing.T) {
 	dir := setupDir(t)
 	writeItem(t, dir, nowItem("20260417-cancel_me", model.KindNextAction, model.StatusActive), "")
@@ -569,6 +631,39 @@ func TestEngageCancel(t *testing.T) {
 	got, _ := readItem(t, dir, "20260417-cancel_me")
 	if got.Status != model.StatusCanceled {
 		t.Errorf("status: want canceled, got %q", got.Status)
+	}
+}
+
+func TestEngageCancelBulk(t *testing.T) {
+	dir := setupDir(t)
+	ids := []string{"20260417-bc1", "20260417-bc2"}
+	for _, id := range ids {
+		writeItem(t, dir, nowItem(id, model.KindNextAction, model.StatusActive), "")
+	}
+
+	_, _, err := runCmd(t, dir, append([]string{"engage", "cancel"}, ids...)...)
+	if err != nil {
+		t.Fatalf("engage cancel (bulk): %v", err)
+	}
+	for _, id := range ids {
+		got, _ := readItem(t, dir, id)
+		if got.Status != model.StatusCanceled {
+			t.Errorf("%s status: want canceled, got %q", id, got.Status)
+		}
+	}
+}
+
+func TestEngageDoneBulkStopsOnFirstError(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260417-bd_ok", model.KindNextAction, model.StatusActive), "")
+
+	_, _, err := runCmd(t, dir, "engage", "done", "20260417-bd_ok", "20260417-bd_missing")
+	if err == nil {
+		t.Fatal("expected error when an ID is missing")
+	}
+	got, _ := readItem(t, dir, "20260417-bd_ok")
+	if got.Status != model.StatusDone {
+		t.Errorf("earlier ID should be marked done before failure: got status %q", got.Status)
 	}
 }
 
