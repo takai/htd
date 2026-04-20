@@ -27,12 +27,12 @@ func newOrganizeCommand(c *container) *cobra.Command {
 
 func newOrganizeMoveCommand(c *container) *cobra.Command {
 	return &cobra.Command{
-		Use:   "move ID KIND",
-		Short: "Change an item's category",
-		Args:  cobra.ExactArgs(2),
+		Use:   "move KIND ID [ID...]",
+		Short: "Change the category of one or more items",
+		Args:  cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			itemID := args[0]
-			newKind := model.Kind(args[1])
+			newKind := model.Kind(args[0])
+			ids := args[1:]
 
 			if newKind == model.KindInbox {
 				return fmt.Errorf("cannot move items to inbox; items enter inbox only via 'capture add'")
@@ -41,27 +41,35 @@ func newOrganizeMoveCommand(c *container) *cobra.Command {
 				return fmt.Errorf("invalid kind %q", newKind)
 			}
 
-			path, err := store.FindItem(c.cfg, itemID)
-			if err != nil {
-				return err
+			for _, itemID := range ids {
+				if err := moveItem(c, itemID, newKind); err != nil {
+					return err
+				}
 			}
-			item, body, err := store.Read(path)
-			if err != nil {
-				return err
-			}
-			if !model.IsActive(item.Status) {
-				return fmt.Errorf("cannot move item with status %q", item.Status)
-			}
-
-			item.Kind = newKind
-			item.UpdatedAt = time.Now()
-			newPath := store.PathForItem(c.cfg, item)
-			if path == newPath {
-				return store.Write(path, item, body)
-			}
-			return store.Move(path, newPath, item, body)
+			return nil
 		},
 	}
+}
+
+func moveItem(c *container, itemID string, newKind model.Kind) error {
+	path, err := store.FindItem(c.cfg, itemID)
+	if err != nil {
+		return err
+	}
+	item, body, err := store.Read(path)
+	if err != nil {
+		return err
+	}
+	if !model.IsActive(item.Status) {
+		return fmt.Errorf("cannot move item with status %q", item.Status)
+	}
+	item.Kind = newKind
+	item.UpdatedAt = time.Now()
+	newPath := store.PathForItem(c.cfg, item)
+	if path == newPath {
+		return store.Write(path, item, body)
+	}
+	return store.Move(path, newPath, item, body)
 }
 
 func newOrganizeLinkCommand(c *container) *cobra.Command {

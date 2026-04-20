@@ -48,7 +48,7 @@ htd clarify discard ID
 ### Organize
 
 ```
-htd organize move ID KIND
+htd organize move KIND ID [ID...]
 htd organize link ID --project PROJECT_ID
 htd organize schedule ID [--due DATE] [--defer DATE] [--review DATE]
 ```
@@ -73,8 +73,8 @@ htd reflect done --since DATE
 htd engage next-action [--project PROJECT_ID] [--tag TAG]...
 htd engage waiting [--stale-days N]
 htd engage tickler
-htd engage done ID
-htd engage cancel ID
+htd engage done ID [ID...]
+htd engage cancel ID [ID...]
 ```
 
 The list commands surface what demands action now: next actions ready to work on, waiting-for items untouched for `--stale-days` or more (default 7), and ticklers whose trigger date has arrived.

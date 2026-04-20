@@ -28,22 +28,32 @@ func newEngageCommand(c *container) *cobra.Command {
 
 func newEngageDoneCommand(c *container) *cobra.Command {
 	return &cobra.Command{
-		Use:   "done ID",
-		Short: "Mark an item as completed",
-		Args:  cobra.ExactArgs(1),
+		Use:   "done ID [ID...]",
+		Short: "Mark one or more items as completed",
+		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return terminateItem(c, args[0], model.StatusDone)
+			for _, id := range args {
+				if err := terminateItem(c, id, model.StatusDone); err != nil {
+					return err
+				}
+			}
+			return nil
 		},
 	}
 }
 
 func newEngageCancelCommand(c *container) *cobra.Command {
 	return &cobra.Command{
-		Use:   "cancel ID",
-		Short: "Cancel an active item",
-		Args:  cobra.ExactArgs(1),
+		Use:   "cancel ID [ID...]",
+		Short: "Cancel one or more active items",
+		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return terminateItem(c, args[0], model.StatusCanceled)
+			for _, id := range args {
+				if err := terminateItem(c, id, model.StatusCanceled); err != nil {
+					return err
+				}
+			}
+			return nil
 		},
 	}
 }

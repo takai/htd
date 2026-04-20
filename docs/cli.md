@@ -199,28 +199,36 @@ Categorize, link, and schedule items.
 
 ### 4.1 `htd organize move`
 
-Change an item's category (kind). Moves the file to the corresponding directory.
+Change the category (kind) of one or more items. Moves each file to the corresponding directory.
 
 ```
-htd organize move ID KIND
+htd organize move KIND ID [ID...]
 ```
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `ID` | yes | The item ID |
 | `KIND` | yes | Target kind: `next_action`, `project`, `waiting_for`, `someday`, `tickler` |
+| `ID` | yes | One or more item IDs to move to `KIND` |
 
 **Behavior:**
 
-1. Find the item file across all `items/<kind>/` directories.
-2. Update `kind` in front matter to the new value.
-3. Set `updated_at` to the current timestamp.
-4. Move the file to `items/<new-kind>/<id>.md`.
+1. For each `ID`, in order:
+   1. Find the item file across all `items/<kind>/` directories.
+   2. Update `kind` in front matter to `KIND`.
+   3. Set `updated_at` to the current timestamp.
+   4. Move the file to `items/<new-kind>/<id>.md`.
+2. On the first failure (missing ID, terminal status, etc.), stop processing and exit with an error. IDs processed before the failure remain moved.
 
 **Constraints:**
 
 - Cannot move to `inbox` (items enter inbox only via `capture add`).
 - Cannot move archived items (status must be `active`).
+
+**Example:**
+
+```
+$ htd organize move someday 20260417-read_article 20260417-try_tool 20260417-watch_talk
+```
 
 ### 4.2 `htd organize link`
 
@@ -460,18 +468,20 @@ Choose and complete work.
 
 ### 6.1 `htd engage done`
 
-Mark an item as completed.
+Mark one or more items as completed.
 
 ```
-htd engage done ID
+htd engage done ID [ID...]
 ```
 
 **Behavior:**
 
-1. Find the item across all `items/<kind>/` directories.
-2. Set `status: done`.
-3. Set `updated_at` to the current timestamp.
-4. Move the file to `archive/items/<id>.md`.
+1. For each `ID`, in order:
+   1. Find the item across all `items/<kind>/` directories.
+   2. Set `status: done`.
+   3. Set `updated_at` to the current timestamp.
+   4. Move the file to `archive/items/<id>.md`.
+2. On the first failure (missing ID, already-terminal item, etc.), stop processing and exit with an error. IDs processed before the failure remain marked done.
 
 **Constraints:**
 
@@ -479,18 +489,20 @@ htd engage done ID
 
 ### 6.2 `htd engage cancel`
 
-Cancel an active item that is no longer being pursued.
+Cancel one or more active items that are no longer being pursued.
 
 ```
-htd engage cancel ID
+htd engage cancel ID [ID...]
 ```
 
 **Behavior:**
 
-1. Find the item across all `items/<kind>/` directories.
-2. Set `status: canceled`.
-3. Set `updated_at` to the current timestamp.
-4. Move the file to `archive/items/<id>.md`.
+1. For each `ID`, in order:
+   1. Find the item across all `items/<kind>/` directories.
+   2. Set `status: canceled`.
+   3. Set `updated_at` to the current timestamp.
+   4. Move the file to `archive/items/<id>.md`.
+2. On the first failure, stop processing and exit with an error. IDs processed before the failure remain canceled.
 
 **Constraints:**
 
@@ -714,7 +726,7 @@ htd completion zsh > "${fpath[1]}/_htd"
 | `htd clarify show ID` | Show an inbox item |
 | `htd clarify update ID` | Update an inbox item |
 | `htd clarify discard ID` | Discard an inbox item |
-| `htd organize move ID KIND` | Change item category |
+| `htd organize move KIND ID [ID...]` | Change the category of one or more items |
 | `htd organize link ID --project PID` | Link item to a project |
 | `htd organize schedule ID` | Set dates on an item |
 | `htd organize promote ID --child TITLE...` | Promote to a project with next-action children |
@@ -724,8 +736,8 @@ htd completion zsh > "${fpath[1]}/_htd"
 | `htd reflect review` | List items due for review |
 | `htd reflect log --since DATE` | List recently resolved items (activity log) |
 | `htd reflect tickler [--pull]` | List fired tickler items, or pull them into the inbox |
-| `htd engage done ID` | Mark an item as done |
-| `htd engage cancel ID` | Cancel an active item |
+| `htd engage done ID [ID...]` | Mark one or more items as done |
+| `htd engage cancel ID [ID...]` | Cancel one or more active items |
 | `htd engage next-action` | List next actions ready to work on now |
 | `htd engage waiting` | List waiting-for items that need follow-up |
 | `htd item get ID` | Get any item by ID |
