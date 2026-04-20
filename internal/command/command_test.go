@@ -356,6 +356,108 @@ func TestEngageNextAction(t *testing.T) {
 	}
 }
 
+func TestEngageNextActionIncludesDueToday(t *testing.T) {
+	dir := setupDir(t)
+	now := time.Now()
+	todayMidnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
+	due := nowItem("20260420-due_today", model.KindNextAction, model.StatusActive)
+	due.DueAt = &todayMidnight
+	writeItem(t, dir, due, "")
+
+	past := todayMidnight.Add(-24 * time.Hour)
+	overdue := nowItem("20260420-overdue", model.KindNextAction, model.StatusActive)
+	overdue.DueAt = &past
+	writeItem(t, dir, overdue, "")
+
+	future := todayMidnight.Add(48 * time.Hour)
+	upcoming := nowItem("20260420-upcoming", model.KindNextAction, model.StatusActive)
+	upcoming.DueAt = &future
+	writeItem(t, dir, upcoming, "")
+
+	out, _, err := runCmd(t, dir, "engage", "next-action")
+	if err != nil {
+		t.Fatalf("engage next-action: %v", err)
+	}
+	for _, id := range []string{"20260420-due_today", "20260420-overdue", "20260420-upcoming"} {
+		if !strings.Contains(out, id) {
+			t.Errorf("missing %s: %q", id, out)
+		}
+	}
+}
+
+func TestEngageNextActionSortsByDueAt(t *testing.T) {
+	dir := setupDir(t)
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	yesterday := today.Add(-24 * time.Hour)
+	tomorrow := today.Add(24 * time.Hour)
+
+	a := nowItem("20260420-a_tomorrow", model.KindNextAction, model.StatusActive)
+	a.DueAt = &tomorrow
+	b := nowItem("20260420-b_yesterday", model.KindNextAction, model.StatusActive)
+	b.DueAt = &yesterday
+	c := nowItem("20260420-c_nodue", model.KindNextAction, model.StatusActive)
+	d := nowItem("20260420-d_today", model.KindNextAction, model.StatusActive)
+	d.DueAt = &today
+	writeItem(t, dir, a, "")
+	writeItem(t, dir, b, "")
+	writeItem(t, dir, c, "")
+	writeItem(t, dir, d, "")
+
+	out, _, err := runCmd(t, dir, "engage", "next-action")
+	if err != nil {
+		t.Fatalf("engage next-action: %v", err)
+	}
+
+	want := []string{
+		"20260420-b_yesterday",
+		"20260420-d_today",
+		"20260420-a_tomorrow",
+		"20260420-c_nodue",
+	}
+	var positions []int
+	for _, id := range want {
+		idx := strings.Index(out, id)
+		if idx < 0 {
+			t.Fatalf("missing %s in output: %q", id, out)
+		}
+		positions = append(positions, idx)
+	}
+	for i := 1; i < len(positions); i++ {
+		if positions[i] < positions[i-1] {
+			t.Errorf("sort order: %s should appear after %s\nout=%q", want[i], want[i-1], out)
+		}
+	}
+}
+
+func TestEngageNextActionShowsDueAtColumn(t *testing.T) {
+	dir := setupDir(t)
+	due := time.Date(2026, 4, 20, 0, 0, 0, 0, time.Local)
+
+	it := nowItem("20260420-dated", model.KindNextAction, model.StatusActive)
+	it.DueAt = &due
+	it.Project = "20260420-some_proj"
+	writeItem(t, dir, it, "")
+
+	out, _, err := runCmd(t, dir, "engage", "next-action")
+	if err != nil {
+		t.Fatalf("engage next-action: %v", err)
+	}
+	if !strings.Contains(out, "DUE_AT") {
+		t.Errorf("header should include DUE_AT column: %q", out)
+	}
+	if !strings.Contains(out, "PROJECT") {
+		t.Errorf("header should include PROJECT column: %q", out)
+	}
+	if !strings.Contains(out, "2026-04-20") {
+		t.Errorf("due_at value should appear: %q", out)
+	}
+	if !strings.Contains(out, "20260420-some_proj") {
+		t.Errorf("project value should appear: %q", out)
+	}
+}
+
 func TestEngageNextActionFilterProject(t *testing.T) {
 	dir := setupDir(t)
 	a := nowItem("20260417-na_a", model.KindNextAction, model.StatusActive)
@@ -548,6 +650,61 @@ func TestReflectNextActions(t *testing.T) {
 	}
 	if strings.Contains(out, "20260417-inbox1") {
 		t.Errorf("should not include inbox item: %q", out)
+	}
+}
+
+func TestReflectNextActionsSortsByDueAt(t *testing.T) {
+	dir := setupDir(t)
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	yesterday := today.Add(-24 * time.Hour)
+	tomorrow := today.Add(24 * time.Hour)
+
+	a := nowItem("20260420-r_tomorrow", model.KindNextAction, model.StatusActive)
+	a.DueAt = &tomorrow
+	b := nowItem("20260420-r_yesterday", model.KindNextAction, model.StatusActive)
+	b.DueAt = &yesterday
+	c := nowItem("20260420-r_nodue", model.KindNextAction, model.StatusActive)
+	writeItem(t, dir, a, "")
+	writeItem(t, dir, b, "")
+	writeItem(t, dir, c, "")
+
+	out, _, err := runCmd(t, dir, "reflect", "next-actions")
+	if err != nil {
+		t.Fatalf("reflect next-actions: %v", err)
+	}
+	want := []string{"20260420-r_yesterday", "20260420-r_tomorrow", "20260420-r_nodue"}
+	var positions []int
+	for _, id := range want {
+		idx := strings.Index(out, id)
+		if idx < 0 {
+			t.Fatalf("missing %s: %q", id, out)
+		}
+		positions = append(positions, idx)
+	}
+	for i := 1; i < len(positions); i++ {
+		if positions[i] < positions[i-1] {
+			t.Errorf("sort order: %s should appear after %s\nout=%q", want[i], want[i-1], out)
+		}
+	}
+}
+
+func TestReflectNextActionsShowsDueAtColumn(t *testing.T) {
+	dir := setupDir(t)
+	due := time.Date(2026, 4, 20, 0, 0, 0, 0, time.Local)
+	it := nowItem("20260420-r_dated", model.KindNextAction, model.StatusActive)
+	it.DueAt = &due
+	writeItem(t, dir, it, "")
+
+	out, _, err := runCmd(t, dir, "reflect", "next-actions")
+	if err != nil {
+		t.Fatalf("reflect next-actions: %v", err)
+	}
+	if !strings.Contains(out, "DUE_AT") {
+		t.Errorf("header should include DUE_AT column: %q", out)
+	}
+	if !strings.Contains(out, "2026-04-20") {
+		t.Errorf("due_at value should appear: %q", out)
 	}
 }
 

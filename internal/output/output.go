@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"text/tabwriter"
+	"time"
 
 	"github.com/takai/htd/internal/model"
 )
@@ -102,6 +103,44 @@ func (p *Printer) printItemsText(items []*model.Item) {
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", it.ID, it.Kind, it.Status, truncateRunes(it.Title, 40))
 	}
 	_ = tw.Flush()
+}
+
+// PrintNextActionItems prints items in the column layout specified by
+// docs/cli.md §5.1 and §6.3: ID, TITLE, PROJECT, DUE_AT. JSON output is the
+// same shape as PrintItems (full item fields) so agents retain all context.
+func (p *Printer) PrintNextActionItems(items []*model.Item) {
+	if p.json {
+		p.printItemsJSON(items)
+		return
+	}
+	tw := tabwriter.NewWriter(p.out, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "ID\tTITLE\tPROJECT\tDUE_AT")
+	for _, it := range items {
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n",
+			it.ID,
+			truncateRunes(it.Title, 40),
+			dashIfEmpty(it.Project),
+			formatDueAt(it.DueAt),
+		)
+	}
+	_ = tw.Flush()
+}
+
+func formatDueAt(t *time.Time) string {
+	if t == nil {
+		return "-"
+	}
+	if t.Hour() == 0 && t.Minute() == 0 && t.Second() == 0 && t.Nanosecond() == 0 {
+		return t.Format("2006-01-02")
+	}
+	return t.Format("2006-01-02T15:04:05Z07:00")
+}
+
+func dashIfEmpty(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
 }
 
 // truncateRunes returns s truncated to at most max runes, appending "..." if it

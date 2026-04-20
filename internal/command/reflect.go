@@ -54,7 +54,7 @@ func newReflectNextActionsCommand(c *container) *cobra.Command {
 				}
 				return visible[i].DueAt.Before(*visible[j].DueAt)
 			})
-			c.printer.PrintItems(visible)
+			c.printer.PrintNextActionItems(visible)
 			return nil
 		},
 	}
