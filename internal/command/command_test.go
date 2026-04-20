@@ -1423,6 +1423,114 @@ func TestItemArchive(t *testing.T) {
 	}
 }
 
+func TestItemRestoreDone(t *testing.T) {
+	dir := setupDir(t)
+	done := nowItem("20260417-restore_done", model.KindNextAction, model.StatusDone)
+	writeItem(t, dir, done, "body preserved")
+
+	_, _, err := runCmd(t, dir, "item", "restore", "20260417-restore_done")
+	if err != nil {
+		t.Fatalf("item restore: %v", err)
+	}
+
+	got, body := readItem(t, dir, "20260417-restore_done")
+	if got.Status != model.StatusActive {
+		t.Errorf("status: want active, got %q", got.Status)
+	}
+	if got.Kind != model.KindNextAction {
+		t.Errorf("kind: want next_action, got %q", got.Kind)
+	}
+	if body != "body preserved" {
+		t.Errorf("body: want %q, got %q", "body preserved", body)
+	}
+	if !got.UpdatedAt.After(done.UpdatedAt) {
+		t.Errorf("updated_at should be refreshed")
+	}
+
+	cfg := config.New(dir)
+	newPath := filepath.Join(cfg.DirForKind(model.KindNextAction), "20260417-restore_done.md")
+	if _, err := os.Stat(newPath); err != nil {
+		t.Errorf("restored item not at %q: %v", newPath, err)
+	}
+	archivePath := filepath.Join(cfg.ArchiveItemsDir(), "20260417-restore_done.md")
+	if _, err := os.Stat(archivePath); !os.IsNotExist(err) {
+		t.Errorf("archive copy should be removed, stat err=%v", err)
+	}
+}
+
+func TestItemRestoreCanceled(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260417-restore_cancel", model.KindProject, model.StatusCanceled), "")
+
+	_, _, err := runCmd(t, dir, "item", "restore", "20260417-restore_cancel")
+	if err != nil {
+		t.Fatalf("item restore: %v", err)
+	}
+	got, _ := readItem(t, dir, "20260417-restore_cancel")
+	if got.Status != model.StatusActive {
+		t.Errorf("status: want active, got %q", got.Status)
+	}
+	cfg := config.New(dir)
+	newPath := filepath.Join(cfg.DirForKind(model.KindProject), "20260417-restore_cancel.md")
+	if _, err := os.Stat(newPath); err != nil {
+		t.Errorf("restored item not in project dir: %v", err)
+	}
+}
+
+func TestItemRestoreDiscardedReturnsToInbox(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260417-restore_disc", model.KindInbox, model.StatusDiscarded), "")
+
+	_, _, err := runCmd(t, dir, "item", "restore", "20260417-restore_disc")
+	if err != nil {
+		t.Fatalf("item restore: %v", err)
+	}
+	got, _ := readItem(t, dir, "20260417-restore_disc")
+	if got.Status != model.StatusActive {
+		t.Errorf("status: want active, got %q", got.Status)
+	}
+	if got.Kind != model.KindInbox {
+		t.Errorf("kind: want inbox, got %q", got.Kind)
+	}
+	cfg := config.New(dir)
+	newPath := filepath.Join(cfg.DirForKind(model.KindInbox), "20260417-restore_disc.md")
+	if _, err := os.Stat(newPath); err != nil {
+		t.Errorf("restored item not in inbox dir: %v", err)
+	}
+}
+
+func TestItemRestoreArchived(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260417-restore_arch", model.KindSomeday, model.StatusArchived), "")
+
+	_, _, err := runCmd(t, dir, "item", "restore", "20260417-restore_arch")
+	if err != nil {
+		t.Fatalf("item restore: %v", err)
+	}
+	got, _ := readItem(t, dir, "20260417-restore_arch")
+	if got.Status != model.StatusActive {
+		t.Errorf("status: want active, got %q", got.Status)
+	}
+}
+
+func TestItemRestoreActiveFails(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260417-restore_live", model.KindNextAction, model.StatusActive), "")
+
+	_, _, err := runCmd(t, dir, "item", "restore", "20260417-restore_live")
+	if err == nil {
+		t.Error("expected error when restoring an already-active item")
+	}
+}
+
+func TestItemRestoreNotFound(t *testing.T) {
+	dir := setupDir(t)
+	_, _, err := runCmd(t, dir, "item", "restore", "20260417-ghost")
+	if !store.IsNotFound(err) {
+		t.Errorf("expected NotFoundError, got %v", err)
+	}
+}
+
 // ---------- init ----------
 
 func TestInitCreatesDirectories(t *testing.T) {

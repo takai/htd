@@ -111,7 +111,7 @@ The file format and directory layout are optimized for AI agent access:
 3. **`done` or `canceled` for list items** — Items that have left the inbox have a clear lifecycle: either they are completed (`done`) or abandoned (`canceled`). There is no ambiguity about which terminal state to use.
 4. **`archived` is a last resort** — `item archive` exists for edge cases where neither `done` nor `canceled` semantically applies (e.g., a project superseded by another). Normal workflow should always end with `done` or `canceled`.
 5. **A project must have at least one next action** — Stalled projects (those with no linked `next_action` items) are flagged during `reflect projects --stalled`.
-6. **Terminal items are nearly immutable** — Items with status `done`, `canceled`, `discarded`, or `archived` should not be modified except for correcting errors via `htd item update`.
+6. **Terminal items are nearly immutable** — Items with status `done`, `canceled`, `discarded`, or `archived` should not be modified except for correcting errors: use `htd item restore` to undo an accidental termination, or `htd item update` for field-level edits.
 
 ---
 

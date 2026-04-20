@@ -121,7 +121,7 @@ stateDiagram-v2
 - `organize move` changes an item's kind within the `active` state; it does not affect status.
 - `discarded` is only reachable from `inbox` via `clarify discard`.
 - `capture add --done` bypasses the inbox entirely: the item is born with `kind: next_action`, `status: done`, and is written directly to `archive/items/`. This is not a violation of the "inbox items cannot go directly to done" rule because the item never has `kind: inbox` at any point.
-- All terminal transitions are one-way. Items cannot return to `active` (use `htd item update` for error correction only).
+- Terminal transitions are one-way in normal workflow. For error correction (e.g. `engage done` run on the wrong ID), use `htd item restore` to bring a terminal item back to `active`; the file is moved back to `items/<kind>/` based on its recorded `kind`.
 
 ---
 

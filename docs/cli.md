@@ -643,6 +643,27 @@ htd item archive ID
 - Only active items can be archived this way.
 - Prefer `engage done` or `engage cancel` for normal workflow completion. Use `item archive` only when an item needs to be removed from active lists without a clear done/canceled semantics (e.g., a project that was superseded rather than finished).
 
+### 7.5 `htd item restore`
+
+Bring a terminal item back to active status. Symmetric to `engage done` / `engage cancel` / `item archive`.
+
+```
+htd item restore ID
+```
+
+**Behavior:**
+
+1. Find the item in `archive/items/`.
+2. Set `status: active`.
+3. Set `updated_at` to the current timestamp.
+4. Move the file back to `items/<kind>/<id>.md`, based on the item's `kind` front-matter value.
+
+**Constraints:**
+
+- The item must have a terminal status (`done`, `canceled`, `discarded`, or `archived`). Restoring an already-active item fails.
+- Restoring a `discarded` inbox item lands it back in `items/inbox/` for re-clarification.
+- Use this for error correction when an item was terminated by mistake; prefer `item update` only when field-level edits are truly needed.
+
 ---
 
 ## 8. Init
@@ -744,4 +765,5 @@ htd completion zsh > "${fpath[1]}/_htd"
 | `htd item list` | List items with filters |
 | `htd item update ID` | Update item fields directly |
 | `htd item archive ID` | Archive an item (last resort) |
+| `htd item restore ID` | Restore a terminal item to active status |
 | `htd completion SHELL` | Emit a shell completion script |
