@@ -1618,6 +1618,192 @@ func TestItemListFilterKind(t *testing.T) {
 	}
 }
 
+func TestItemListQueryUnfielded(t *testing.T) {
+	dir := setupDir(t)
+	a := nowItem("20260417-fix_panic", model.KindInbox, model.StatusActive)
+	a.Title = "Fix panic in parser"
+	b := nowItem("20260417-write_docs", model.KindInbox, model.StatusActive)
+	b.Title = "Write query docs"
+	writeItem(t, dir, a, "")
+	writeItem(t, dir, b, "")
+
+	out, _, err := runCmd(t, dir, "item", "list", "--query", "panic")
+	if err != nil {
+		t.Fatalf("item list --query: %v", err)
+	}
+	if !strings.Contains(out, "20260417-fix_panic") {
+		t.Errorf("expected fix_panic in output: %q", out)
+	}
+	if strings.Contains(out, "20260417-write_docs") {
+		t.Errorf("unexpected write_docs in output: %q", out)
+	}
+}
+
+func TestItemListQueryFieldedTitleQuoted(t *testing.T) {
+	dir := setupDir(t)
+	a := nowItem("20260417-fix_parser_panic", model.KindInbox, model.StatusActive)
+	a.Title = "Fix parser panic"
+	b := nowItem("20260417-refactor_parser", model.KindInbox, model.StatusActive)
+	b.Title = "Refactor parser"
+	writeItem(t, dir, a, "")
+	writeItem(t, dir, b, "")
+
+	out, _, err := runCmd(t, dir, "item", "list", "--query", `title:"fix parser"`)
+	if err != nil {
+		t.Fatalf("item list --query: %v", err)
+	}
+	if !strings.Contains(out, "20260417-fix_parser_panic") {
+		t.Errorf("expected fix_parser_panic in output: %q", out)
+	}
+	if strings.Contains(out, "20260417-refactor_parser") {
+		t.Errorf("unexpected refactor_parser in output: %q", out)
+	}
+}
+
+func TestItemListQueryUnfieldedMatchesBody(t *testing.T) {
+	dir := setupDir(t)
+	a := nowItem("20260417-body_hit", model.KindInbox, model.StatusActive)
+	a.Title = "Task A"
+	b := nowItem("20260417-body_miss", model.KindInbox, model.StatusActive)
+	b.Title = "Task B"
+	writeItem(t, dir, a, "Reproduces on macOS during startup.")
+	writeItem(t, dir, b, "Not relevant.")
+
+	out, _, err := runCmd(t, dir, "item", "list", "--query", "macos")
+	if err != nil {
+		t.Fatalf("item list --query: %v", err)
+	}
+	if !strings.Contains(out, "20260417-body_hit") {
+		t.Errorf("expected body_hit in output: %q", out)
+	}
+	if strings.Contains(out, "20260417-body_miss") {
+		t.Errorf("unexpected body_miss in output: %q", out)
+	}
+}
+
+func TestItemListQueryTagArrayAny(t *testing.T) {
+	dir := setupDir(t)
+	a := nowItem("20260417-bug_item", model.KindInbox, model.StatusActive)
+	a.Tags = []string{"cli", "docs"}
+	writeItem(t, dir, a, "")
+
+	out, _, err := runCmd(t, dir, "item", "list", "--query", "tag:do")
+	if err != nil {
+		t.Fatalf("item list --query: %v", err)
+	}
+	if !strings.Contains(out, "20260417-bug_item") {
+		t.Errorf("expected bug_item (tags contain 'docs') in output: %q", out)
+	}
+}
+
+func TestItemListQueryRefArrayAny(t *testing.T) {
+	dir := setupDir(t)
+	a := nowItem("20260417-ref_hit", model.KindInbox, model.StatusActive)
+	a.Refs = []string{"https://github.com/foo/bar/pull/42"}
+	b := nowItem("20260417-ref_miss", model.KindInbox, model.StatusActive)
+	b.Refs = []string{"https://notion.so/xyz"}
+	writeItem(t, dir, a, "")
+	writeItem(t, dir, b, "")
+
+	out, _, err := runCmd(t, dir, "item", "list", "--query", "ref:github.com")
+	if err != nil {
+		t.Fatalf("item list --query: %v", err)
+	}
+	if !strings.Contains(out, "20260417-ref_hit") {
+		t.Errorf("expected ref_hit in output: %q", out)
+	}
+	if strings.Contains(out, "20260417-ref_miss") {
+		t.Errorf("unexpected ref_miss in output: %q", out)
+	}
+}
+
+func TestItemListQueryBooleanWithExplicitStatus(t *testing.T) {
+	dir := setupDir(t)
+	a := nowItem("20260417-bug_active", model.KindInbox, model.StatusActive)
+	a.Tags = []string{"bug"}
+	b := nowItem("20260417-cli_done", model.KindNextAction, model.StatusDone)
+	b.Tags = []string{"cli"}
+	c := nowItem("20260417-bug_done", model.KindNextAction, model.StatusDone)
+	c.Tags = []string{"bug"}
+	writeItem(t, dir, a, "")
+	writeItem(t, dir, b, "")
+	writeItem(t, dir, c, "")
+
+	// (tag:bug OR tag:cli) NOT status:done — across all statuses.
+	out, _, err := runCmd(t, dir, "item", "list",
+		"--status", "", // disable default status=active so archive is scanned
+		"--query", "(tag:bug OR tag:cli) NOT status:done")
+	if err != nil {
+		t.Fatalf("item list --query: %v", err)
+	}
+	if !strings.Contains(out, "20260417-bug_active") {
+		t.Errorf("expected bug_active in output: %q", out)
+	}
+	if strings.Contains(out, "20260417-cli_done") || strings.Contains(out, "20260417-bug_done") {
+		t.Errorf("unexpected done items in output: %q", out)
+	}
+}
+
+func TestItemListQueryComposesWithFlags(t *testing.T) {
+	dir := setupDir(t)
+	a := nowItem("20260417-inbox_foo", model.KindInbox, model.StatusActive)
+	a.Title = "foo in inbox"
+	b := nowItem("20260417-next_foo", model.KindNextAction, model.StatusActive)
+	b.Title = "foo in next"
+	writeItem(t, dir, a, "")
+	writeItem(t, dir, b, "")
+
+	out, _, err := runCmd(t, dir, "item", "list", "--kind", "inbox", "--query", "foo")
+	if err != nil {
+		t.Fatalf("item list --kind --query: %v", err)
+	}
+	if !strings.Contains(out, "20260417-inbox_foo") {
+		t.Errorf("expected inbox_foo in output: %q", out)
+	}
+	if strings.Contains(out, "20260417-next_foo") {
+		t.Errorf("unexpected next_foo (filtered out by --kind): %q", out)
+	}
+}
+
+func TestItemListQueryEmptyMatchesAll(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260417-list1", model.KindInbox, model.StatusActive), "")
+	writeItem(t, dir, nowItem("20260417-list2", model.KindNextAction, model.StatusActive), "")
+
+	out, _, err := runCmd(t, dir, "item", "list", "--query", "")
+	if err != nil {
+		t.Fatalf("item list --query '': %v", err)
+	}
+	if !strings.Contains(out, "20260417-list1") || !strings.Contains(out, "20260417-list2") {
+		t.Errorf("expected both items with empty --query: %q", out)
+	}
+}
+
+func TestItemListQueryInvalidExpression(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260417-any", model.KindInbox, model.StatusActive), "")
+
+	cases := []struct {
+		name  string
+		query string
+	}{
+		{"unterminated quote", `title:"oops`},
+		{"unknown field", "nope:foo"},
+		{"trailing operator", "foo OR"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, _, err := runCmd(t, dir, "item", "list", "--query", c.query)
+			if err == nil {
+				t.Fatalf("expected error for invalid query %q", c.query)
+			}
+			if !strings.Contains(err.Error(), "invalid --query") {
+				t.Errorf("expected 'invalid --query' in error, got: %v", err)
+			}
+		})
+	}
+}
+
 func TestItemUpdate(t *testing.T) {
 	dir := setupDir(t)
 	writeItem(t, dir, nowItem("20260417-upd", model.KindInbox, model.StatusActive), "")

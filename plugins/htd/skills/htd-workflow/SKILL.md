@@ -80,7 +80,7 @@ All commands accept `--json` for machine-readable output and `--path` to target 
 
 **Item (low-level CRUD)** — use for scripting; workflow commands are preferred.
 - `htd item get ID`
-- `htd item list [--kind KIND] [--status STATUS] [--tag TAG] [--project PID]`
+- `htd item list [--kind KIND] [--status STATUS] [--tag TAG] [--project PID] [--query EXPR]` — `--query` accepts a small DSL (substring by default, `field:value` for targeted match, `AND`/`OR`/`NOT`/parens). Useful for narrowing project candidates, e.g. `htd item list --kind project --query 'cli OR docs' --json`.
 - `htd item update ID FIELD=VALUE...` — `id` and `created_at` are protected.
 - `htd item archive ID`
 - `htd item restore ID` — undo an accidental `engage done`/`cancel`/`discard`/`archive`; brings a terminal item back to `active` and moves it to `items/<kind>/`.

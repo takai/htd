@@ -586,7 +586,7 @@ htd item get ID
 List items with optional filters.
 
 ```
-htd item list [--kind KIND] [--status STATUS] [--tag TAG] [--project PROJECT_ID]
+htd item list [--kind KIND] [--status STATUS] [--tag TAG] [--project PROJECT_ID] [--query EXPR]
 ```
 
 | Option | Required | Description |
@@ -595,12 +595,92 @@ htd item list [--kind KIND] [--status STATUS] [--tag TAG] [--project PROJECT_ID]
 | `--status` | no | Filter by status (default: `active`) |
 | `--tag` | no | Filter by tag; repeatable |
 | `--project` | no | Filter by project ID |
+| `--query` | no | Filter with a query expression (see §7.2.1) |
 
 **Behavior:**
 
 1. Scan the appropriate directories based on filters.
 2. If `--status` includes non-active statuses, also scan `archive/items/`.
-3. Display: `ID`, `TITLE`, `KIND`, `STATUS`, `UPDATED_AT`.
+3. If `--query` is given, parse the expression and keep only items that
+   match. The query is AND-combined with the other filters above.
+4. Display: `ID`, `TITLE`, `KIND`, `STATUS`, `UPDATED_AT`.
+
+#### 7.2.1 Query expressions
+
+`--query` accepts a small DSL for filtering items. It composes with the
+other flags with AND: items must pass both the flag filters and the
+query.
+
+**Grammar**
+
+```
+query      := orExpr
+orExpr     := andExpr { OR andExpr }
+andExpr    := unaryExpr { unaryExpr }      // implicit AND by juxtaposition
+unaryExpr  := [NOT | "-"] primary
+primary    := term | "(" query ")"
+term       := [field ":"] value
+value      := bareword | "quoted string"
+```
+
+- Space between terms means AND. Explicit `AND` is also accepted.
+- `OR` chooses either side. `AND` binds tighter than `OR`.
+- `NOT` (or a leading `-`) negates the following primary only. To negate a
+  compound, wrap it in parentheses: `NOT (a b)`.
+- Quoted values allow whitespace and support `\"` and `\\` as the only
+  escapes.
+
+**Fields (whitelist)**
+
+`id`, `title`, `body`, `kind`, `status`, `project`, `source`, `tag`, `ref`.
+
+`tag` and `ref` are singular (matching the `--tag` / `--ref` flags) and
+map to the `tags` and `refs` arrays — a term matches if any element of
+the array contains the needle. Unknown fields are a parse error.
+
+Without a field, the needle is searched across `title`, `body`, `tags`,
+`refs`, `source`, `project`, and `id`. `kind` and `status` are not
+searched unfielded (use `kind:` or `status:` explicitly).
+
+**Matching**
+
+- Default operator is case-insensitive substring match.
+- Date fields (`due_at`, `defer_until`, `review_at`, `created_at`,
+  `updated_at`) are not searchable in v1.
+- URL values that contain `:` (e.g., `https://…`) must be quoted:
+  `ref:"https://github.com/foo/bar"`. Short hostname matches work
+  unquoted: `ref:github.com`.
+
+**Composition notes**
+
+- The default `--status active` still applies. To search across
+  terminated items, pass `--status ''` or an explicit status (e.g.,
+  `--status done`) alongside `--query`. The query itself does not
+  expand the scan into the archive.
+- `--query ''` (empty string) matches every item — convenient for
+  shell scripts that build the query from a variable.
+- Invalid expressions exit with code `1` and an error on stderr.
+
+**Examples**
+
+```
+# Substring search across all fields
+htd item list --query 'panic'
+
+# Fielded match
+htd item list --query 'title:"fix panic"'
+htd item list --query 'ref:github.com'
+
+# Boolean composition
+htd item list --query 'ref:github.com OR ref:notion.so'
+htd item list --query '(ref:github.com OR ref:notion.so) tag:bug'
+
+# Negation
+htd item list --query '-status:done title:"refactor"'
+
+# Compose with flags (AND)
+htd item list --kind next_action --query 'tag:bug'
+```
 
 ### 7.3 `htd item update`
 
@@ -770,7 +850,7 @@ htd completion zsh > "${fpath[1]}/_htd"
 | `htd engage next-action` | List next actions ready to work on now |
 | `htd engage waiting` | List waiting-for items that need follow-up |
 | `htd item get ID` | Get any item by ID |
-| `htd item list` | List items with filters |
+| `htd item list` | List items with filters (supports `--query` DSL) |
 | `htd item update ID` | Update item fields directly |
 | `htd item archive ID` | Archive an item (last resort) |
 | `htd item restore ID` | Restore a terminal item to active status |
