@@ -35,10 +35,20 @@ htd capture add --title "<title>" [--body "<body>"] [--source <source>] [--tag <
 
 Run it, print the resulting ID, and stop. Do not chain into clarify/organize — the user will do that later with `/htd:clarify` or `/htd:organize`.
 
+## Already-done shortcut
+
+If the user reports that they just finished something quick ("I just did X", "done: X", "already handled X"), pass `--done` to capture it as completed in one step:
+
+```bash
+htd capture add --title "<title>" --done
+```
+
+This lands the item directly in `archive/items/` with `kind: next_action`, `status: done` — no stop in the inbox, no follow-up `engage done` needed. `--body`, `--source`, and `--tag` still apply. Prefer this over `capture add` + `engage done <id>` for anything the user has already completed.
+
 ## Notes
 
 - Titles stay in English per project convention.
 - Keep titles concise — aim for roughly 6–8 words and under 50 characters. The ID is derived from the title as `YYYYMMDD-<slug>`, and long IDs clutter list output and shell history. Trim filler words, drop redundant context (repo names, ticket numbers beyond the primary one), and save details for `--body`.
 - The ID is auto-generated from the title. Don't try to set it yourself.
-- The item lands in `items/inbox/` with `kind: inbox`, `status: active`.
+- Without `--done`, the item lands in `items/inbox/` with `kind: inbox`, `status: active`. With `--done`, it lands in `archive/items/` with `kind: next_action`, `status: done`.
 - If `$ARGUMENTS` would produce an empty title (whitespace only), fall through to the "arguments empty" path.
