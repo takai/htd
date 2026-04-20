@@ -397,6 +397,117 @@ func TestOrganizeSchedule(t *testing.T) {
 	}
 }
 
+func TestOrganizeScheduleRFC3339Due(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260417-rfc_due", model.KindNextAction, model.StatusActive), "")
+
+	const input = "2026-05-01T14:30:00+09:00"
+	_, _, err := runCmd(t, dir, "organize", "schedule", "20260417-rfc_due", "--due", input)
+	if err != nil {
+		t.Fatalf("organize schedule: %v", err)
+	}
+
+	want, err := time.Parse(time.RFC3339, input)
+	if err != nil {
+		t.Fatalf("parse want: %v", err)
+	}
+	got, _ := readItem(t, dir, "20260417-rfc_due")
+	if got.DueAt == nil {
+		t.Fatal("due_at: want non-nil, got nil")
+	}
+	if !got.DueAt.Equal(want) {
+		t.Errorf("due_at: want %s, got %s", want, got.DueAt)
+	}
+
+	cfg := config.New(dir)
+	p := filepath.Join(cfg.DirForKind(model.KindNextAction), "20260417-rfc_due.md")
+	raw, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatalf("read file: %v", err)
+	}
+	if !strings.Contains(string(raw), input) {
+		t.Errorf("on-disk YAML should preserve RFC3339 string %q, got:\n%s", input, raw)
+	}
+}
+
+func TestOrganizeScheduleRFC3339Defer(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260417-rfc_defer_future", model.KindNextAction, model.StatusActive), "")
+	writeItem(t, dir, nowItem("20260417-rfc_defer_past", model.KindNextAction, model.StatusActive), "")
+
+	future := time.Now().Add(1 * time.Hour).Format(time.RFC3339)
+	past := time.Now().Add(-1 * time.Hour).Format(time.RFC3339)
+
+	if _, _, err := runCmd(t, dir, "organize", "schedule", "20260417-rfc_defer_future", "--defer", future); err != nil {
+		t.Fatalf("schedule future defer: %v", err)
+	}
+	if _, _, err := runCmd(t, dir, "organize", "schedule", "20260417-rfc_defer_past", "--defer", past); err != nil {
+		t.Fatalf("schedule past defer: %v", err)
+	}
+
+	got, _ := readItem(t, dir, "20260417-rfc_defer_future")
+	if got.DeferUntil == nil {
+		t.Fatal("defer_until: want non-nil, got nil")
+	}
+	wantFuture, _ := time.Parse(time.RFC3339, future)
+	if !got.DeferUntil.Equal(wantFuture) {
+		t.Errorf("defer_until: want %s, got %s", wantFuture, got.DeferUntil)
+	}
+
+	out, _, err := runCmd(t, dir, "engage", "next-action")
+	if err != nil {
+		t.Fatalf("engage next-action: %v", err)
+	}
+	if strings.Contains(out, "20260417-rfc_defer_future") {
+		t.Errorf("item with defer_until in the future should be hidden: %q", out)
+	}
+	if !strings.Contains(out, "20260417-rfc_defer_past") {
+		t.Errorf("item with defer_until in the past should be visible: %q", out)
+	}
+}
+
+func TestEngageNextActionSortsIntraDay(t *testing.T) {
+	dir := setupDir(t)
+	day := time.Date(2026, 5, 1, 0, 0, 0, 0, time.Local)
+	morning := day.Add(9 * time.Hour)
+	afternoon := day.Add(13 * time.Hour)
+	evening := day.Add(18 * time.Hour)
+
+	e := nowItem("20260501-c_evening", model.KindNextAction, model.StatusActive)
+	e.DueAt = &evening
+	m := nowItem("20260501-a_morning", model.KindNextAction, model.StatusActive)
+	m.DueAt = &morning
+	a := nowItem("20260501-b_afternoon", model.KindNextAction, model.StatusActive)
+	a.DueAt = &afternoon
+	writeItem(t, dir, e, "")
+	writeItem(t, dir, m, "")
+	writeItem(t, dir, a, "")
+
+	out, _, err := runCmd(t, dir, "engage", "next-action")
+	if err != nil {
+		t.Fatalf("engage next-action: %v", err)
+	}
+
+	want := []string{
+		"20260501-a_morning",
+		"20260501-b_afternoon",
+		"20260501-c_evening",
+	}
+	var positions []int
+	for _, id := range want {
+		idx := strings.Index(out, id)
+		if idx < 0 {
+			t.Fatalf("missing %s in output: %q", id, out)
+		}
+		positions = append(positions, idx)
+	}
+	for i := 1; i < len(positions); i++ {
+		if positions[i] < positions[i-1] {
+			t.Errorf("sort order: %s should appear after %s\nout=%q", want[i], want[i-1], out)
+		}
+	}
+}
+
 func TestOrganizePromote(t *testing.T) {
 	dir := setupDir(t)
 	parent := nowItem("20260420-launch_cli", model.KindInbox, model.StatusActive)
