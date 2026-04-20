@@ -125,7 +125,7 @@ All files are Markdown with YAML front matter and can be read, edited, or commit
 
 ## Claude Code plugin
 
-This repository also ships a Claude Code plugin that drives the five-phase workflow from inside Claude Code. It exposes one slash command per phase (`/htd:capture`, `/htd:clarify`, `/htd:organize`, `/htd:reflect`, `/htd:engage`), a workflow skill, and two subagents for the longer clarify and reflect flows. The plugin wraps the `htd` CLI, so the binary must be installed and on `PATH`.
+This repository also ships a Claude Code plugin that drives the five-phase workflow from inside Claude Code. It exposes one slash command per phase (`/htd:capture`, `/htd:clarify`, `/htd:organize`, `/htd:reflect`, `/htd:engage`), plus two review rituals — `/htd:daily-review` for a fast morning check-in and `/htd:weekly-review` for the full weekly sweep — a workflow skill, and two subagents for the longer clarify and reflect flows. The plugin wraps the `htd` CLI, so the binary must be installed and on `PATH`.
 
 Install the CLI and create a working directory as above, then inside Claude Code:
 
