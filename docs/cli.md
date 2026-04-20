@@ -371,24 +371,42 @@ htd reflect review
 3. Display: `ID`, `TITLE`, `KIND`, `REVIEW_AT`.
 4. Sort by `review_at` ascending.
 
-### 5.5 `htd reflect done`
+### 5.5 `htd reflect log`
 
-List recently completed items.
+List recently resolved items — an activity log for daily standups, weekly reviews, and retros.
 
 ```
-htd reflect done --since DATE
+htd reflect log --since DATE [--until DATE] [--kind KIND] [--tag TAG]... [--status STATUS]...
 ```
 
 | Option | Required | Description |
 |--------|----------|-------------|
-| `--since` | yes | Show items completed since this date (`YYYY-MM-DD`) |
+| `--since` | yes | Show items updated on or after this date (`YYYY-MM-DD`) |
+| `--until` | no | Show items updated on or before this date (`YYYY-MM-DD`); inclusive end-of-day |
+| `--kind` | no | Filter by kind |
+| `--tag` | no | Filter by tag; repeatable (items must match all supplied tags) |
+| `--status` | no | Filter by terminal status; repeatable. Values: `done`, `canceled`, `discarded`, `archived`. Defaults to `done` when omitted. |
 
 **Behavior:**
 
-1. Read all files in `archive/items/` with `status: done`.
-2. Filter to items where `updated_at >= --since`.
-3. Display: `ID`, `TITLE`, `KIND`, `UPDATED_AT`.
-4. Sort by `updated_at` descending.
+1. Read all files in `archive/items/` matching the status filter.
+2. Filter to items where `updated_at >= --since` (and `<= --until` if given).
+3. Apply `--kind` and `--tag` filters.
+4. Display: `ID`, `KIND`, `STATUS`, `UPDATED_AT`, `TITLE`.
+5. Sort by `updated_at` descending.
+
+**Examples:**
+
+```
+# What did I finish today?
+$ htd reflect log --since 2026-04-20
+
+# Weekly wrap-up, including canceled items
+$ htd reflect log --since 2026-04-14 --status done --status canceled
+
+# What docs-tagged next actions closed this month?
+$ htd reflect log --since 2026-04-01 --kind next_action --tag docs
+```
 
 ---
 
@@ -676,7 +694,7 @@ htd completion zsh > "${fpath[1]}/_htd"
 | `htd reflect projects` | List active projects |
 | `htd reflect waiting` | List waiting-for items |
 | `htd reflect review` | List items due for review |
-| `htd reflect done --since DATE` | List recently completed items |
+| `htd reflect log --since DATE` | List recently resolved items (activity log) |
 | `htd engage done ID` | Mark an item as done |
 | `htd engage cancel ID` | Cancel an active item |
 | `htd engage next-action` | List next actions ready to work on now |

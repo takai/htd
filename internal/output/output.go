@@ -233,6 +233,27 @@ func (p *Printer) printItemsJSON(items []*model.Item) {
 	fmt.Fprintln(p.out, string(data))
 }
 
+// PrintLogItems prints a reflect log view: ID, KIND, STATUS, UPDATED_AT, TITLE.
+// JSON output is the same shape as PrintItems (full item fields).
+func (p *Printer) PrintLogItems(items []*model.Item) {
+	if p.json {
+		p.printItemsJSON(items)
+		return
+	}
+	tw := tabwriter.NewWriter(p.out, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "ID\tKIND\tSTATUS\tUPDATED_AT\tTITLE")
+	for _, it := range items {
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
+			it.ID,
+			it.Kind,
+			it.Status,
+			it.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			truncateRunes(it.Title, 40),
+		)
+	}
+	_ = tw.Flush()
+}
+
 type waitingItemJSON struct {
 	itemJSON
 	AgeDays int `json:"age_days"`

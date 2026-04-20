@@ -198,10 +198,8 @@ func newOrganizePromoteCommand(c *container) *cobra.Command {
 			if len(children) == 0 {
 				return fmt.Errorf("at least one --child is required")
 			}
-			for _, title := range children {
-				if title == "" {
-					return fmt.Errorf("--child title must not be empty")
-				}
+			if slices.Contains(children, "") {
+				return fmt.Errorf("--child title must not be empty")
 			}
 
 			parentID := args[0]
