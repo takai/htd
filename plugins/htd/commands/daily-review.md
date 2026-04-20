@@ -7,9 +7,23 @@ description: Run the daily review — pull fired ticklers into the inbox, clear 
 
 You are running the user's daily review. Your job is to walk them through a short, predictable sequence that empties the tickler, processes any inbox that results, flags what's due, and surfaces what to work on. Keep it brisk — the user wants to finish and start doing, not sit in meta-work.
 
-Announce the flow ("Running your daily review — 5 quick steps.") and move through the steps in order.
+Announce the flow ("Running your daily review — 6 quick steps.") and move through the steps in order.
 
-## 1. Pull fired ticklers
+## 1. Calendar check
+
+The calendar is the hard landscape of the day — time-specific commitments that shape what's realistic. Prompt the user:
+
+> "Open your calendar and scan today. Anything time-specific worth flagging before we look at tasks? Meetings that need prep, blocks that change which next actions are realistic, commitments I should know about?"
+
+If the user surfaces anything actionable, capture it:
+
+```bash
+htd capture add --title "<text>" --source calendar
+```
+
+htd itself has no calendar — this step is a user-facing prompt. If the user has no external calendar, or has already checked it, acknowledge in one line and move on. Any items captured here will flow into step 3 (inbox processing).
+
+## 2. Pull fired ticklers
 
 Preview first:
 
@@ -17,7 +31,7 @@ Preview first:
 htd reflect tickler --json
 ```
 
-Parse the JSON. If empty, say so in one line and skip to step 2.
+Parse the JSON. If empty, say so in one line and skip to step 3.
 
 Otherwise show the user the list (ID + title + trigger date). Ask for confirmation, then run:
 
@@ -27,7 +41,7 @@ htd reflect tickler --pull
 
 The pulled items are now in the inbox as unclarified input — they're prompts to re-decide, not automatic next actions.
 
-## 2. Process the inbox
+## 3. Process the inbox
 
 Check what's there (includes anything just pulled):
 
@@ -41,7 +55,7 @@ If the inbox is empty, say so and skip. Otherwise hand off to the clarify flow:
 
 Don't process the inbox inline — that belongs to the `/htd:clarify` subagent. Your job here is to surface the count and hand off cleanly.
 
-## 3. Review queue
+## 4. Review queue
 
 ```bash
 htd reflect review --json
@@ -51,7 +65,7 @@ Items whose `review_at` is today or past. Summarize in one short block: count, a
 
 Don't prescribe an action — just surface. The user decides whether to open each one.
 
-## 4. Today's next actions
+## 5. Today's next actions
 
 ```bash
 htd reflect next-actions --json
@@ -59,7 +73,7 @@ htd reflect next-actions --json
 
 Summarize: total count, plus the top 3–5 by due date (soonest first, `-` for undated). Keep this to about 6 lines.
 
-## 5. Stale waiting-for
+## 6. Stale waiting-for
 
 ```bash
 htd engage waiting --json
@@ -72,7 +86,7 @@ If nothing is ≥ 7 days old, say "nothing stale" and skip. Otherwise list the o
 One-line summary:
 
 ```
-Daily review: <N> ticklers pulled, <M> inbox items to clarify, <K> review items, <L> next actions ready, <S> stale waiting.
+Daily review: <C> calendar items flagged, <N> ticklers pulled, <M> inbox items to clarify, <K> review items, <L> next actions ready, <S> stale waiting.
 ```
 
 Then stop. The user takes it from here.
