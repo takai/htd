@@ -821,56 +821,6 @@ func TestEngageWaitingJSONIncludesAgeDays(t *testing.T) {
 	}
 }
 
-func TestEngageTickler(t *testing.T) {
-	dir := setupDir(t)
-	now := time.Now()
-	past := now.Add(-24 * time.Hour)
-	future := now.Add(24 * time.Hour)
-
-	due := nowItem("20260417-tick_due", model.KindTickler, model.StatusActive)
-	due.DeferUntil = &past
-	writeItem(t, dir, due, "")
-
-	notYet := nowItem("20260417-tick_future", model.KindTickler, model.StatusActive)
-	notYet.DeferUntil = &future
-	writeItem(t, dir, notYet, "")
-
-	noDate := nowItem("20260417-tick_nodate", model.KindTickler, model.StatusActive)
-	writeItem(t, dir, noDate, "")
-
-	out, _, err := runCmd(t, dir, "engage", "tickler")
-	if err != nil {
-		t.Fatalf("engage tickler: %v", err)
-	}
-	if !strings.Contains(out, "20260417-tick_due") {
-		t.Errorf("missing due tickler: %q", out)
-	}
-	if strings.Contains(out, "20260417-tick_future") {
-		t.Errorf("should not include future tickler: %q", out)
-	}
-	if strings.Contains(out, "20260417-tick_nodate") {
-		t.Errorf("should not include dateless tickler: %q", out)
-	}
-}
-
-func TestEngageTicklerReviewAtFallback(t *testing.T) {
-	dir := setupDir(t)
-	now := time.Now()
-	past := now.Add(-24 * time.Hour)
-
-	tick := nowItem("20260417-tick_review", model.KindTickler, model.StatusActive)
-	tick.ReviewAt = &past
-	writeItem(t, dir, tick, "")
-
-	out, _, err := runCmd(t, dir, "engage", "tickler")
-	if err != nil {
-		t.Fatalf("engage tickler: %v", err)
-	}
-	if !strings.Contains(out, "20260417-tick_review") {
-		t.Errorf("missing review_at-triggered tickler: %q", out)
-	}
-}
-
 // ---------- reflect ----------
 
 func TestReflectNextActions(t *testing.T) {
@@ -1114,6 +1064,174 @@ func TestReflectLogInvalidStatus(t *testing.T) {
 		"--since", "2026-01-01", "--status", "active")
 	if err == nil {
 		t.Fatalf("expected error for non-terminal status, got nil; stderr=%q", stderr)
+	}
+}
+
+func TestReflectTickler(t *testing.T) {
+	dir := setupDir(t)
+	now := time.Now()
+	past := now.Add(-24 * time.Hour)
+	future := now.Add(24 * time.Hour)
+
+	due := nowItem("20260417-tick_due", model.KindTickler, model.StatusActive)
+	due.DeferUntil = &past
+	writeItem(t, dir, due, "")
+
+	notYet := nowItem("20260417-tick_future", model.KindTickler, model.StatusActive)
+	notYet.DeferUntil = &future
+	writeItem(t, dir, notYet, "")
+
+	noDate := nowItem("20260417-tick_nodate", model.KindTickler, model.StatusActive)
+	writeItem(t, dir, noDate, "")
+
+	out, _, err := runCmd(t, dir, "reflect", "tickler")
+	if err != nil {
+		t.Fatalf("reflect tickler: %v", err)
+	}
+	if !strings.Contains(out, "20260417-tick_due") {
+		t.Errorf("missing due tickler: %q", out)
+	}
+	if strings.Contains(out, "20260417-tick_future") {
+		t.Errorf("should not include future tickler: %q", out)
+	}
+	if strings.Contains(out, "20260417-tick_nodate") {
+		t.Errorf("should not include dateless tickler: %q", out)
+	}
+}
+
+func TestReflectTicklerReviewAtFallback(t *testing.T) {
+	dir := setupDir(t)
+	now := time.Now()
+	past := now.Add(-24 * time.Hour)
+
+	tick := nowItem("20260417-tick_review", model.KindTickler, model.StatusActive)
+	tick.ReviewAt = &past
+	writeItem(t, dir, tick, "")
+
+	out, _, err := runCmd(t, dir, "reflect", "tickler")
+	if err != nil {
+		t.Fatalf("reflect tickler: %v", err)
+	}
+	if !strings.Contains(out, "20260417-tick_review") {
+		t.Errorf("missing review_at-triggered tickler: %q", out)
+	}
+}
+
+func TestReflectTicklerPull(t *testing.T) {
+	dir := setupDir(t)
+	now := time.Now()
+	past := now.Add(-24 * time.Hour)
+	future := now.Add(24 * time.Hour)
+	reviewDate := now.Add(-48 * time.Hour)
+
+	fired := nowItem("20260417-pull_fired", model.KindTickler, model.StatusActive)
+	fired.DeferUntil = &past
+	fired.ReviewAt = &reviewDate
+	fired.CreatedAt = now.Add(-72 * time.Hour)
+	fired.UpdatedAt = now.Add(-72 * time.Hour)
+	writeItem(t, dir, fired, "body content")
+
+	waiting := nowItem("20260417-pull_future", model.KindTickler, model.StatusActive)
+	waiting.DeferUntil = &future
+	writeItem(t, dir, waiting, "")
+
+	out, _, err := runCmd(t, dir, "reflect", "tickler", "--pull")
+	if err != nil {
+		t.Fatalf("reflect tickler --pull: %v", err)
+	}
+	if !strings.Contains(out, "20260417-pull_fired") {
+		t.Errorf("pulled ID not printed: %q", out)
+	}
+	if strings.Contains(out, "20260417-pull_future") {
+		t.Errorf("non-fired tickler should not be pulled: %q", out)
+	}
+
+	moved, body := readItem(t, dir, "20260417-pull_fired")
+	if moved.Kind != model.KindInbox {
+		t.Errorf("kind: want inbox, got %s", moved.Kind)
+	}
+	if moved.DeferUntil != nil {
+		t.Errorf("defer_until should be cleared, got %v", moved.DeferUntil)
+	}
+	if moved.ReviewAt == nil {
+		t.Errorf("review_at should be preserved")
+	}
+	if !moved.UpdatedAt.After(fired.UpdatedAt) {
+		t.Errorf("updated_at should be refreshed")
+	}
+	if body != "body content" {
+		t.Errorf("body: want %q, got %q", "body content", body)
+	}
+
+	cfg := config.New(dir)
+	oldPath := filepath.Join(cfg.DirForKind(model.KindTickler), "20260417-pull_fired.md")
+	if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
+		t.Errorf("old tickler file should be gone, stat err=%v", err)
+	}
+
+	stillThere, _ := readItem(t, dir, "20260417-pull_future")
+	if stillThere.Kind != model.KindTickler {
+		t.Errorf("non-fired tickler moved: kind=%s", stillThere.Kind)
+	}
+}
+
+func TestReflectTicklerPullEmpty(t *testing.T) {
+	dir := setupDir(t)
+	future := time.Now().Add(24 * time.Hour)
+
+	pending := nowItem("20260417-tick_pending", model.KindTickler, model.StatusActive)
+	pending.DeferUntil = &future
+	writeItem(t, dir, pending, "")
+
+	out, _, err := runCmd(t, dir, "reflect", "tickler", "--pull")
+	if err != nil {
+		t.Fatalf("reflect tickler --pull: %v", err)
+	}
+	if strings.TrimSpace(out) != "" {
+		t.Errorf("expected empty output, got %q", out)
+	}
+}
+
+func TestReflectTicklerPullJSON(t *testing.T) {
+	dir := setupDir(t)
+	past := time.Now().Add(-24 * time.Hour)
+
+	fired := nowItem("20260417-json_fired", model.KindTickler, model.StatusActive)
+	fired.DeferUntil = &past
+	writeItem(t, dir, fired, "")
+
+	out, _, err := runCmd(t, dir, "--json", "reflect", "tickler", "--pull")
+	if err != nil {
+		t.Fatalf("reflect tickler --pull --json: %v", err)
+	}
+	var got struct {
+		Pulled []string `json:"pulled"`
+	}
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("json parse: %v; out=%q", err, out)
+	}
+	if len(got.Pulled) != 1 || got.Pulled[0] != "20260417-json_fired" {
+		t.Errorf("pulled: want [20260417-json_fired], got %v", got.Pulled)
+	}
+}
+
+func TestReflectTicklerPullJSONEmpty(t *testing.T) {
+	dir := setupDir(t)
+	out, _, err := runCmd(t, dir, "--json", "reflect", "tickler", "--pull")
+	if err != nil {
+		t.Fatalf("reflect tickler --pull --json: %v", err)
+	}
+	var got struct {
+		Pulled []string `json:"pulled"`
+	}
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("json parse: %v; out=%q", err, out)
+	}
+	if got.Pulled == nil {
+		t.Errorf("pulled should be [] not null: %q", out)
+	}
+	if len(got.Pulled) != 0 {
+		t.Errorf("pulled should be empty, got %v", got.Pulled)
 	}
 }
 

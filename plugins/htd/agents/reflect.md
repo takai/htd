@@ -18,7 +18,8 @@ htd reflect projects --json
 htd reflect projects --stalled --json
 htd reflect waiting --json
 htd reflect review --json
-htd reflect done --since <7-days-ago-YYYY-MM-DD> --json
+htd reflect tickler --json
+htd reflect log --since <7-days-ago-YYYY-MM-DD> --json
 ```
 
 Compute the `--since` date from the current date minus 7 days. If the user passed a different range in the conversation, use that instead.
@@ -29,7 +30,7 @@ Produce a single Markdown report with these sections. Keep it scannable — coun
 
 ### Summary
 
-One-line counts: next actions ready, active projects, stalled projects, waiting-for total, items due for review, completed in the last 7 days.
+One-line counts: next actions ready, active projects, stalled projects, waiting-for total, items due for review, fired ticklers, completed in the last 7 days.
 
 ### Stalled projects
 
@@ -38,6 +39,10 @@ List every stalled project (no linked active next_action) with ID and title. For
 ### Review queue
 
 List items where `review_at` is today or past, sorted by `review_at` ascending. For each: ID, title, kind, review date.
+
+### Fired ticklers
+
+List ticklers whose trigger (`defer_until`, or `review_at` fallback) is today or past, sorted ascending. For each: ID, title, trigger date. If any are fired, suggest `/htd:daily-review` — it pulls them into the inbox so the normal clarify flow can re-decide each one. The reflect agent itself is read-only; it never pulls.
 
 ### Waiting-for
 
@@ -52,7 +57,7 @@ Count + a few titles from the last 7 days. This is a morale boost — keep it sh
 A bullet list of anything anomalous:
 - Projects with no next_action (repeat of stalled section, keep it here too).
 - Next actions with due dates in the past.
-- Items with `defer_until` that has already passed (should be visible now but might be forgotten).
+- Non-tickler items with `defer_until` that has already passed (ticklers are already covered above — this flag is for other kinds where a deferral may have been forgotten).
 - Any other pattern worth the user's attention.
 
 ## After the report

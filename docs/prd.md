@@ -35,8 +35,8 @@ The system structures all task management around five sequential phases:
 | **Capture** | Collect inputs into a single inbox | `htd capture` |
 | **Clarify** | Process inbox items — define, update, or discard | `htd clarify` |
 | **Organize** | Categorize, link to projects, and schedule | `htd organize` |
-| **Reflect** | Review lists, detect stalled projects, check progress | `htd reflect` |
-| **Engage** | Choose and complete work; surface what needs action now (ready next actions, stale waiting-for items, fired ticklers) | `htd engage` |
+| **Reflect** | Review lists, detect stalled projects, empty fired ticklers into the inbox, check progress | `htd reflect` |
+| **Engage** | Choose and complete work; surface what needs action now (ready next actions, stale waiting-for items) | `htd engage` |
 
 ### 2.2 Data Types
 
