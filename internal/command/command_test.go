@@ -998,17 +998,122 @@ func TestReflectWaiting(t *testing.T) {
 	}
 }
 
-func TestReflectDone(t *testing.T) {
+func TestReflectLogDefault(t *testing.T) {
 	dir := setupDir(t)
-	item := nowItem("20260417-done_item", model.KindNextAction, model.StatusDone)
-	writeItem(t, dir, item, "")
+	done := nowItem("20260417-log_done", model.KindNextAction, model.StatusDone)
+	canceled := nowItem("20260417-log_canceled", model.KindNextAction, model.StatusCanceled)
+	writeItem(t, dir, done, "")
+	writeItem(t, dir, canceled, "")
 
-	out, _, err := runCmd(t, dir, "reflect", "done", "--since", "2026-01-01")
+	out, _, err := runCmd(t, dir, "reflect", "log", "--since", "2026-01-01")
 	if err != nil {
-		t.Fatalf("reflect done: %v", err)
+		t.Fatalf("reflect log: %v", err)
 	}
-	if !strings.Contains(out, "20260417-done_item") {
+	if !strings.Contains(out, "20260417-log_done") {
 		t.Errorf("missing done item: %q", out)
+	}
+	if strings.Contains(out, "20260417-log_canceled") {
+		t.Errorf("default status filter should exclude canceled: %q", out)
+	}
+	if !strings.Contains(out, "UPDATED_AT") {
+		t.Errorf("log output should include UPDATED_AT header: %q", out)
+	}
+}
+
+func TestReflectLogKindFilter(t *testing.T) {
+	dir := setupDir(t)
+	na := nowItem("20260417-log_na", model.KindNextAction, model.StatusDone)
+	proj := nowItem("20260417-log_proj", model.KindProject, model.StatusDone)
+	writeItem(t, dir, na, "")
+	writeItem(t, dir, proj, "")
+
+	out, _, err := runCmd(t, dir, "reflect", "log",
+		"--since", "2026-01-01", "--kind", "project")
+	if err != nil {
+		t.Fatalf("reflect log --kind: %v", err)
+	}
+	if !strings.Contains(out, "20260417-log_proj") {
+		t.Errorf("missing project item: %q", out)
+	}
+	if strings.Contains(out, "20260417-log_na") {
+		t.Errorf("kind filter should exclude next_action: %q", out)
+	}
+}
+
+func TestReflectLogTagFilter(t *testing.T) {
+	dir := setupDir(t)
+	tagged := nowItem("20260417-log_tagged", model.KindNextAction, model.StatusDone)
+	tagged.Tags = []string{"cli", "docs"}
+	other := nowItem("20260417-log_other", model.KindNextAction, model.StatusDone)
+	other.Tags = []string{"cli"}
+	writeItem(t, dir, tagged, "")
+	writeItem(t, dir, other, "")
+
+	out, _, err := runCmd(t, dir, "reflect", "log",
+		"--since", "2026-01-01", "--tag", "cli", "--tag", "docs")
+	if err != nil {
+		t.Fatalf("reflect log --tag: %v", err)
+	}
+	if !strings.Contains(out, "20260417-log_tagged") {
+		t.Errorf("missing all-tags match: %q", out)
+	}
+	if strings.Contains(out, "20260417-log_other") {
+		t.Errorf("partial tag match should be excluded: %q", out)
+	}
+}
+
+func TestReflectLogStatusMulti(t *testing.T) {
+	dir := setupDir(t)
+	done := nowItem("20260417-log_d", model.KindNextAction, model.StatusDone)
+	canceled := nowItem("20260417-log_c", model.KindNextAction, model.StatusCanceled)
+	archived := nowItem("20260417-log_a", model.KindNextAction, model.StatusArchived)
+	writeItem(t, dir, done, "")
+	writeItem(t, dir, canceled, "")
+	writeItem(t, dir, archived, "")
+
+	out, _, err := runCmd(t, dir, "reflect", "log",
+		"--since", "2026-01-01",
+		"--status", "done", "--status", "canceled")
+	if err != nil {
+		t.Fatalf("reflect log --status: %v", err)
+	}
+	if !strings.Contains(out, "20260417-log_d") || !strings.Contains(out, "20260417-log_c") {
+		t.Errorf("multi-status should include done and canceled: %q", out)
+	}
+	if strings.Contains(out, "20260417-log_a") {
+		t.Errorf("archived should be excluded: %q", out)
+	}
+}
+
+func TestReflectLogSinceBoundary(t *testing.T) {
+	dir := setupDir(t)
+	old := &model.Item{
+		ID: "20260101-old_done", Title: "old", Kind: model.KindNextAction, Status: model.StatusDone,
+		CreatedAt: time.Date(2026, 1, 1, 9, 0, 0, 0, time.Local),
+		UpdatedAt: time.Date(2026, 1, 1, 9, 0, 0, 0, time.Local),
+	}
+	recent := nowItem("20260417-recent_done", model.KindNextAction, model.StatusDone)
+	writeItem(t, dir, old, "")
+	writeItem(t, dir, recent, "")
+
+	out, _, err := runCmd(t, dir, "reflect", "log", "--since", "2026-04-01")
+	if err != nil {
+		t.Fatalf("reflect log --since: %v", err)
+	}
+	if !strings.Contains(out, "20260417-recent_done") {
+		t.Errorf("recent item should be included: %q", out)
+	}
+	if strings.Contains(out, "20260101-old_done") {
+		t.Errorf("item before --since should be excluded: %q", out)
+	}
+}
+
+func TestReflectLogInvalidStatus(t *testing.T) {
+	dir := setupDir(t)
+	_, stderr, err := runCmd(t, dir, "reflect", "log",
+		"--since", "2026-01-01", "--status", "active")
+	if err == nil {
+		t.Fatalf("expected error for non-terminal status, got nil; stderr=%q", stderr)
 	}
 }
 

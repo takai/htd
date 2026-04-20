@@ -21,7 +21,7 @@ func newReflectCommand(c *container) *cobra.Command {
 		newReflectProjectsCommand(c),
 		newReflectWaitingCommand(c),
 		newReflectReviewCommand(c),
-		newReflectDoneCommand(c),
+		newReflectLogCommand(c),
 	)
 	return cmd
 }
@@ -148,38 +148,101 @@ func newReflectReviewCommand(c *container) *cobra.Command {
 	}
 }
 
-func newReflectDoneCommand(c *container) *cobra.Command {
-	var since string
+func newReflectLogCommand(c *container) *cobra.Command {
+	var (
+		since    string
+		until    string
+		kindStr  string
+		tags     []string
+		statuses []string
+	)
 
 	cmd := &cobra.Command{
-		Use:   "done",
-		Short: "List recently completed items",
+		Use:   "log",
+		Short: "List recently resolved items (activity log)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			sinceTime, err := time.ParseInLocation("2006-01-02", since, time.Local)
 			if err != nil {
 				return fmt.Errorf("--since: cannot parse %q as date", since)
 			}
 
-			status := model.StatusDone
-			items, err := store.List(c.cfg, store.Filter{Status: &status})
+			var untilEnd time.Time
+			if until != "" {
+				u, err := time.ParseInLocation("2006-01-02", until, time.Local)
+				if err != nil {
+					return fmt.Errorf("--until: cannot parse %q as date", until)
+				}
+				untilEnd = time.Date(u.Year(), u.Month(), u.Day(), 23, 59, 59, 0, u.Location())
+			}
+
+			statusSet, err := parseLogStatuses(statuses)
 			if err != nil {
 				return err
 			}
+
+			f := store.Filter{}
+			if kindStr != "" {
+				k := model.Kind(kindStr)
+				if !isValidKind(k) {
+					return fmt.Errorf("invalid kind %q", kindStr)
+				}
+				f.Kind = &k
+			}
+			if len(statusSet) == 1 {
+				for s := range statusSet {
+					f.Status = &s
+				}
+			}
+
+			items, err := store.List(c.cfg, f)
+			if err != nil {
+				return err
+			}
+
 			var result []*model.Item
 			for _, it := range items {
-				if !it.UpdatedAt.Before(sinceTime) {
-					result = append(result, it)
+				if _, ok := statusSet[it.Status]; !ok {
+					continue
 				}
+				if it.UpdatedAt.Before(sinceTime) {
+					continue
+				}
+				if !untilEnd.IsZero() && it.UpdatedAt.After(untilEnd) {
+					continue
+				}
+				if !matchAllTags(it, tags) {
+					continue
+				}
+				result = append(result, it)
 			}
 			sort.Slice(result, func(i, j int) bool {
 				return result[i].UpdatedAt.After(result[j].UpdatedAt)
 			})
-			c.printer.PrintItems(result)
+			c.printer.PrintLogItems(result)
 			return nil
 		},
 	}
 
-	cmd.Flags().StringVar(&since, "since", "", "Show items completed since this date (YYYY-MM-DD)")
+	cmd.Flags().StringVar(&since, "since", "", "Show items updated on or after this date (YYYY-MM-DD)")
+	cmd.Flags().StringVar(&until, "until", "", "Show items updated on or before this date (YYYY-MM-DD)")
+	cmd.Flags().StringVar(&kindStr, "kind", "", "Filter by kind")
+	cmd.Flags().StringSliceVar(&tags, "tag", nil, "Filter by tag (repeatable)")
+	cmd.Flags().StringSliceVar(&statuses, "status", nil, "Filter by terminal status (repeatable; default: done)")
 	_ = cmd.MarkFlagRequired("since")
 	return cmd
+}
+
+func parseLogStatuses(raw []string) (map[model.Status]struct{}, error) {
+	if len(raw) == 0 {
+		return map[model.Status]struct{}{model.StatusDone: {}}, nil
+	}
+	set := make(map[model.Status]struct{}, len(raw))
+	for _, s := range raw {
+		status := model.Status(s)
+		if !model.IsTerminal(status) {
+			return nil, fmt.Errorf("--status: %q is not a terminal status (done, canceled, discarded, archived)", s)
+		}
+		set[status] = struct{}{}
+	}
+	return set, nil
 }
