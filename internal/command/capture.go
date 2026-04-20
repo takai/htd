@@ -25,6 +25,7 @@ func newCaptureAddCommand(c *container) *cobra.Command {
 		body   string
 		source string
 		tags   []string
+		done   bool
 	)
 
 	cmd := &cobra.Command{
@@ -37,11 +38,21 @@ func newCaptureAddCommand(c *container) *cobra.Command {
 			now := time.Now()
 			itemID := generateUniqueID(c, title, now)
 
+			kind := model.KindInbox
+			status := model.StatusActive
+			if done {
+				// --done lands the item directly as a completed next_action,
+				// bypassing the inbox. The item is routed to archive/items/
+				// by store.PathForItem because its status is terminal.
+				kind = model.KindNextAction
+				status = model.StatusDone
+			}
+
 			item := &model.Item{
 				ID:        itemID,
 				Title:     title,
-				Kind:      model.KindInbox,
-				Status:    model.StatusActive,
+				Kind:      kind,
+				Status:    status,
 				Source:    source,
 				Tags:      tags,
 				CreatedAt: now,
@@ -64,6 +75,7 @@ func newCaptureAddCommand(c *container) *cobra.Command {
 	cmd.Flags().StringVar(&body, "body", "", "Detailed description (Markdown)")
 	cmd.Flags().StringVar(&source, "source", "", "Origin of the item")
 	cmd.Flags().StringArrayVar(&tags, "tag", nil, "Tag (repeatable)")
+	cmd.Flags().BoolVar(&done, "done", false, "Capture the item as already completed (lands in archive/items/ with kind=next_action, status=done)")
 
 	return cmd
 }

@@ -121,6 +121,61 @@ func TestCaptureAddWithOptions(t *testing.T) {
 	}
 }
 
+func TestCaptureAddDone(t *testing.T) {
+	dir := setupDir(t)
+	out, _, err := runCmd(t, dir, "capture", "add", "--title", "Quick thing", "--done")
+	if err != nil {
+		t.Fatalf("capture add --done: %v", err)
+	}
+	id := strings.TrimSpace(out)
+	if id == "" {
+		t.Fatal("expected ID output")
+	}
+
+	cfg := config.New(dir)
+	archivePath := filepath.Join(cfg.ArchiveItemsDir(), id+".md")
+	if _, err := os.Stat(archivePath); err != nil {
+		t.Fatalf("expected item at %q, stat err: %v", archivePath, err)
+	}
+	inboxPath := filepath.Join(cfg.DirForKind(model.KindInbox), id+".md")
+	if _, err := os.Stat(inboxPath); !os.IsNotExist(err) {
+		t.Errorf("expected no item at %q; stat err: %v", inboxPath, err)
+	}
+
+	item, _ := readItem(t, dir, id)
+	if item.Kind != model.KindNextAction {
+		t.Errorf("kind: want next_action, got %q", item.Kind)
+	}
+	if item.Status != model.StatusDone {
+		t.Errorf("status: want done, got %q", item.Status)
+	}
+}
+
+func TestCaptureAddDonePreservesMetadata(t *testing.T) {
+	dir := setupDir(t)
+	out, _, err := runCmd(t, dir, "capture", "add",
+		"--title", "Quick thing with detail",
+		"--body", "body text",
+		"--source", "manual",
+		"--tag", "quick",
+		"--done",
+	)
+	if err != nil {
+		t.Fatalf("capture add --done: %v", err)
+	}
+	id := strings.TrimSpace(out)
+	item, body := readItem(t, dir, id)
+	if item.Source != "manual" {
+		t.Errorf("source: want manual, got %q", item.Source)
+	}
+	if len(item.Tags) != 1 || item.Tags[0] != "quick" {
+		t.Errorf("tags: want [quick], got %v", item.Tags)
+	}
+	if body != "body text" {
+		t.Errorf("body: want %q, got %q", "body text", body)
+	}
+}
+
 func TestCaptureAddIDFormat(t *testing.T) {
 	dir := setupDir(t)
 	out, _, err := runCmd(t, dir, "capture", "add", "--title", "Write the man page")

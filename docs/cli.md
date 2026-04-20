@@ -65,7 +65,7 @@ Resolution order for the root directory: `--path` (if given) → `$HTD_PATH` (if
 Add a new item to the inbox.
 
 ```
-htd capture add --title TEXT [--body TEXT] [--source NAME] [--tag TAG]...
+htd capture add --title TEXT [--body TEXT] [--source NAME] [--tag TAG]... [--done]
 ```
 
 | Option | Required | Description |
@@ -74,6 +74,7 @@ htd capture add --title TEXT [--body TEXT] [--source NAME] [--tag TAG]...
 | `--body` | no | Detailed description (Markdown) |
 | `--source` | no | Origin of the item (e.g., `email`, `meeting`, `slack`) |
 | `--tag` | no | Tag to attach; repeatable for multiple tags |
+| `--done` | no | Capture the item as already completed (see below) |
 
 **Behavior:**
 
@@ -88,6 +89,25 @@ htd capture add --title TEXT [--body TEXT] [--source NAME] [--tag TAG]...
 ```
 $ htd capture add --title "Write the man page" --source manual --tag cli --tag docs
 20260417-write_the_man_page
+```
+
+**`--done` behavior:**
+
+When `--done` is passed, the item is captured as already completed instead of entering the inbox. This is a shortcut for items that were completed on the spot — a single action whose capture and completion collapse into the same step.
+
+1. Generate a new ID (same rule as above).
+2. Set `kind: next_action`, `status: done`.
+3. Set `created_at` and `updated_at` to the current timestamp.
+4. Write the file directly to `archive/items/<id>.md` (no temporary stop in `items/inbox/`).
+5. Print the created ID to stdout.
+
+`--body`, `--source`, and `--tag` still apply when `--done` is set, so metadata is preserved on the archived item.
+
+**Example:**
+
+```
+$ htd capture add --title "Reply to Alice" --done
+20260420-reply_to_alice
 ```
 
 ---

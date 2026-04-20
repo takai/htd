@@ -50,6 +50,7 @@ All commands accept `--json` for machine-readable output and `--path` to target 
 
 **Capture**
 - `htd capture add --title TEXT [--body TEXT] [--source NAME] [--tag TAG]...`
+- `htd capture add --title TEXT --done [--body TEXT] [--source NAME] [--tag TAG]...` — capture an already-completed item. Bypasses the inbox; the item lands directly in `archive/items/` with `kind: next_action`, `status: done`. Prefer this over `capture add` followed by `engage done <id>` when the user has already finished the task.
 
 **Clarify** (inbox only)
 - `htd clarify list`
@@ -88,6 +89,7 @@ All commands accept `--json` for machine-readable output and `--path` to target 
 | User says / situation | Suggest |
 |-----------------------|---------|
 | "remember to X", "I just thought of X", a random idea | `htd capture add` or `/htd:capture` |
+| "I just did X", "already handled X", a small task already completed | `htd capture add --title "X" --done` |
 | "my inbox is full", "process my inbox" | `/htd:clarify` (walks item-by-item) |
 | "categorize this", "link this to project Y", "set a due date" | `/htd:organize` |
 | "weekly review", "how's my system looking", "what's stalled" | `/htd:reflect` |
