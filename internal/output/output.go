@@ -59,6 +59,24 @@ func (p *Printer) PrintPaths(paths []string) {
 	}
 }
 
+// PrintPulled prints the result of `reflect tickler --pull`: one moved ID per
+// line in text mode, or `{"pulled": [...]}` in JSON mode.
+func (p *Printer) PrintPulled(ids []string) {
+	if p.json {
+		if ids == nil {
+			ids = []string{}
+		}
+		data, _ := json.Marshal(struct {
+			Pulled []string `json:"pulled"`
+		}{Pulled: ids})
+		fmt.Fprintln(p.out, string(data))
+		return
+	}
+	for _, id := range ids {
+		fmt.Fprintln(p.out, id)
+	}
+}
+
 func (p *Printer) PrintItem(item *model.Item, body string) {
 	if p.json {
 		p.printItemJSON(item, body)

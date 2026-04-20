@@ -22,6 +22,7 @@ func newReflectCommand(c *container) *cobra.Command {
 		newReflectWaitingCommand(c),
 		newReflectReviewCommand(c),
 		newReflectLogCommand(c),
+		newReflectTicklerCommand(c),
 	)
 	return cmd
 }
@@ -230,6 +231,76 @@ func newReflectLogCommand(c *container) *cobra.Command {
 	cmd.Flags().StringSliceVar(&statuses, "status", nil, "Filter by terminal status (repeatable; default: done)")
 	_ = cmd.MarkFlagRequired("since")
 	return cmd
+}
+
+func newReflectTicklerCommand(c *container) *cobra.Command {
+	var pull bool
+
+	cmd := &cobra.Command{
+		Use:   "tickler",
+		Short: "List fired tickler items, or pull them into the inbox with --pull",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			kind := model.KindTickler
+			status := model.StatusActive
+			items, err := store.List(c.cfg, store.Filter{Kind: &kind, Status: &status})
+			if err != nil {
+				return err
+			}
+			now := time.Now()
+			todayEnd := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, now.Location())
+
+			var due []*model.Item
+			triggers := make(map[string]time.Time)
+			for _, it := range items {
+				trigger := ticklerTrigger(it)
+				if trigger == nil || trigger.After(todayEnd) {
+					continue
+				}
+				due = append(due, it)
+				triggers[it.ID] = *trigger
+			}
+			sort.Slice(due, func(i, j int) bool {
+				return triggers[due[i].ID].Before(triggers[due[j].ID])
+			})
+
+			if !pull {
+				c.printer.PrintItems(due)
+				return nil
+			}
+
+			pulled := make([]string, 0, len(due))
+			for _, it := range due {
+				src := store.PathForItem(c.cfg, it)
+				full, body, err := store.Read(src)
+				if err != nil {
+					return err
+				}
+				full.Kind = model.KindInbox
+				full.DeferUntil = nil
+				full.UpdatedAt = time.Now()
+				dst := store.PathForItem(c.cfg, full)
+				if err := store.Move(src, dst, full, body); err != nil {
+					return err
+				}
+				pulled = append(pulled, full.ID)
+			}
+			c.printer.PrintPulled(pulled)
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&pull, "pull", false, "Move fired tickler items into the inbox")
+	return cmd
+}
+
+func ticklerTrigger(it *model.Item) *time.Time {
+	if it.DeferUntil != nil {
+		return it.DeferUntil
+	}
+	if it.ReviewAt != nil {
+		return it.ReviewAt
+	}
+	return nil
 }
 
 func parseLogStatuses(raw []string) (map[model.Status]struct{}, error) {

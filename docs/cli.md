@@ -408,6 +408,50 @@ $ htd reflect log --since 2026-04-14 --status done --status canceled
 $ htd reflect log --since 2026-04-01 --kind next_action --tag docs
 ```
 
+### 5.6 `htd reflect tickler`
+
+List tickler items whose trigger date has arrived, or pull them into the inbox for re-clarification.
+
+```
+htd reflect tickler [--pull]
+```
+
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--pull` | no | Move fired tickler items into `items/inbox/` instead of just listing them |
+
+**Behavior:**
+
+1. Read all files in `items/tickler/` with `status: active`.
+2. For each item, take `defer_until` as the trigger; if absent, fall back to `review_at`; if both are absent, skip.
+3. Keep items whose trigger is today or in the past.
+4. Sort by trigger ascending (earliest first).
+5. Without `--pull`: display `ID`, `TITLE`, `DEFER_UNTIL`. No state change.
+6. With `--pull`, for each selected item in trigger order:
+   - Set `kind: inbox`.
+   - Clear `defer_until` (the deferral has served its purpose). `review_at` is preserved.
+   - Set `updated_at` to the current timestamp.
+   - Move the file to `items/inbox/<id>.md`.
+   - Print the moved ID to stdout.
+
+Pulled items land in the inbox as unclarified input, so they flow through the normal `clarify` process — a fired tickler is a prompt to re-decide, not an auto-promotion to `next_action`.
+
+**JSON output:**
+
+- Without `--pull`: array of items.
+- With `--pull`: `{"pulled": ["<id>", ...]}`.
+
+**Examples:**
+
+```
+# See what fired today
+$ htd reflect tickler
+
+# Empty the fired items into the inbox for clarify
+$ htd reflect tickler --pull
+20260417-quarterly_review_prep
+```
+
 ---
 
 ## 6. Engage
@@ -497,22 +541,6 @@ htd engage waiting [--stale-days N]
 5. Sort by age descending (oldest first).
 
 **JSON output:** Array of items with an added `age_days` integer field.
-
-### 6.5 `htd engage tickler`
-
-List tickler items whose trigger date has arrived.
-
-```
-htd engage tickler
-```
-
-**Behavior:**
-
-1. Read all files in `items/tickler/` with `status: active`.
-2. For each item, take `defer_until` as the trigger; if absent, fall back to `review_at`; if both are absent, skip.
-3. Keep items whose trigger is today or in the past.
-4. Display: `ID`, `TITLE`, `DEFER_UNTIL`.
-5. Sort by trigger ascending (earliest first).
 
 ---
 
@@ -695,11 +723,11 @@ htd completion zsh > "${fpath[1]}/_htd"
 | `htd reflect waiting` | List waiting-for items |
 | `htd reflect review` | List items due for review |
 | `htd reflect log --since DATE` | List recently resolved items (activity log) |
+| `htd reflect tickler [--pull]` | List fired tickler items, or pull them into the inbox |
 | `htd engage done ID` | Mark an item as done |
 | `htd engage cancel ID` | Cancel an active item |
 | `htd engage next-action` | List next actions ready to work on now |
 | `htd engage waiting` | List waiting-for items that need follow-up |
-| `htd engage tickler` | List tickler items whose trigger date has arrived |
 | `htd item get ID` | Get any item by ID |
 | `htd item list` | List items with filters |
 | `htd item update ID` | Update item fields directly |
