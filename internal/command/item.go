@@ -116,10 +116,51 @@ func newItemListCommand(c *container) *cobra.Command {
 	return cmd
 }
 
+// itemUpdateFields lists the field names accepted by `htd item update`, in
+// the order shown in help text. Keep this list aligned with applyField.
+var itemUpdateFields = []string{
+	"title", "body", "kind", "status", "project", "source",
+	"tags", "refs", "due_at", "defer_until", "review_at",
+}
+
+const itemUpdateLong = `Update fields on an item.
+
+Each argument is a FIELD=VALUE pair. Multiple pairs are applied in order and
+written atomically in a single file update.
+
+Supported fields:
+  title        Short description.
+  body         Detailed description (Markdown; the content after front matter).
+  kind         One of: inbox, next_action, project, waiting_for, someday, tickler.
+  status       One of: active, done, canceled, discarded, archived.
+  project      ID of a project-kind item.
+  source       Origin string (e.g., manual, email, slack).
+  tags         Comma-separated list, optionally bracketed: foo,bar or [foo,bar].
+               Pass tags= (empty) to clear.
+  refs         Comma-separated URL list, same syntax as tags.
+  due_at       YYYY-MM-DD or RFC3339 (e.g., 2026-05-01T14:30:00+09:00).
+               Pass due_at= (empty) to clear.
+  defer_until  Same format as due_at.
+  review_at    Same format as due_at.
+
+Protected fields (cannot be changed): id, created_at.
+
+For the normal workflow, prefer the dedicated commands:
+  organize schedule               set due_at / defer_until / review_at
+  organize link / organize unlink set or clear project
+  organize move                   change kind
+  engage done / engage cancel     mark terminal
+  item archive / item restore     other status transitions
+
+Use item update for scripting, automation, and agent use where setting several
+fields in one call is more convenient than invoking the workflow commands
+separately.`
+
 func newItemUpdateCommand(c *container) *cobra.Command {
 	return &cobra.Command{
 		Use:   "update ID FIELD=VALUE...",
 		Short: "Update arbitrary fields on an item",
+		Long:  itemUpdateLong,
 		Args:  cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			itemID := args[0]
@@ -260,7 +301,7 @@ func applyField(item *model.Item, body *string, key, value string) error {
 	case "body":
 		*body = value
 	default:
-		return fmt.Errorf("unknown field %q", key)
+		return fmt.Errorf("unknown field %q (supported: %s)", key, strings.Join(itemUpdateFields, ", "))
 	}
 	return nil
 }
