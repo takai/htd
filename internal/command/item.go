@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/takai/htd/internal/model"
+	"github.com/takai/htd/internal/output"
 	"github.com/takai/htd/internal/query"
 	"github.com/takai/htd/internal/store"
 )
@@ -135,6 +136,7 @@ func newItemUpdateCommand(c *container) *cobra.Command {
 
 			oldPath := store.PathForItem(c.cfg, item)
 
+			var changes []output.Change
 			for _, pair := range pairs {
 				k, v, ok := strings.Cut(pair, "=")
 				if !ok {
@@ -143,15 +145,42 @@ func newItemUpdateCommand(c *container) *cobra.Command {
 				if err := applyField(item, &body, k, v); err != nil {
 					return err
 				}
+				changes = append(changes, output.Change{Key: k, Value: normalizedFieldValue(item, k, v)})
 			}
 			item.UpdatedAt = time.Now()
 
 			newPath := store.PathForItem(c.cfg, item)
 			if oldPath != newPath {
-				return store.Move(oldPath, newPath, item, body)
+				if err := store.Move(oldPath, newPath, item, body); err != nil {
+					return err
+				}
+			} else if err := store.Write(path, item, body); err != nil {
+				return err
 			}
-			return store.Write(path, item, body)
+			c.printer.PrintUpdates([]output.Update{{Item: item, Changes: changes}})
+			return nil
 		},
+	}
+}
+
+// normalizedFieldValue returns the on-disk representation of the field after
+// applyField ran, so verbose output shows the effective value (e.g., a
+// date-only input expanded to RFC3339, or `[a,b]` for tag lists). Falls
+// back to the raw input for free-form fields.
+func normalizedFieldValue(item *model.Item, key, raw string) string {
+	switch key {
+	case "due_at":
+		return output.FormatTimePtr(item.DueAt)
+	case "defer_until":
+		return output.FormatTimePtr(item.DeferUntil)
+	case "review_at":
+		return output.FormatTimePtr(item.ReviewAt)
+	case "tags":
+		return output.FormatList(item.Tags)
+	case "refs":
+		return output.FormatList(item.Refs)
+	default:
+		return raw
 	}
 }
 
@@ -257,7 +286,14 @@ func newItemArchiveCommand(c *container) *cobra.Command {
 			item.Status = model.StatusArchived
 			item.UpdatedAt = time.Now()
 			newPath := store.PathForItem(c.cfg, item)
-			return store.Move(path, newPath, item, body)
+			if err := store.Move(path, newPath, item, body); err != nil {
+				return err
+			}
+			c.printer.PrintUpdates([]output.Update{{
+				Item:    item,
+				Changes: []output.Change{{Key: "status", Value: string(model.StatusArchived)}},
+			}})
+			return nil
 		},
 	}
 }
@@ -283,7 +319,14 @@ func newItemRestoreCommand(c *container) *cobra.Command {
 			item.Status = model.StatusActive
 			item.UpdatedAt = time.Now()
 			newPath := store.PathForItem(c.cfg, item)
-			return store.Move(path, newPath, item, body)
+			if err := store.Move(path, newPath, item, body); err != nil {
+				return err
+			}
+			c.printer.PrintUpdates([]output.Update{{
+				Item:    item,
+				Changes: []output.Change{{Key: "status", Value: string(model.StatusActive)}},
+			}})
+			return nil
 		},
 	}
 }

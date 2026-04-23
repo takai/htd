@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/takai/htd/internal/model"
+	"github.com/takai/htd/internal/output"
 	"github.com/takai/htd/internal/store"
 )
 
@@ -41,35 +42,48 @@ func newOrganizeMoveCommand(c *container) *cobra.Command {
 				return fmt.Errorf("invalid kind %q", newKind)
 			}
 
+			var updates []output.Update
 			for _, itemID := range ids {
-				if err := moveItem(c, itemID, newKind); err != nil {
+				item, err := moveItem(c, itemID, newKind)
+				if err != nil {
 					return err
 				}
+				updates = append(updates, output.Update{
+					Item:    item,
+					Changes: []output.Change{{Key: "kind", Value: string(newKind)}},
+				})
 			}
+			c.printer.PrintUpdates(updates)
 			return nil
 		},
 	}
 }
 
-func moveItem(c *container, itemID string, newKind model.Kind) error {
+func moveItem(c *container, itemID string, newKind model.Kind) (*model.Item, error) {
 	path, err := store.FindItem(c.cfg, itemID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	item, body, err := store.Read(path)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !model.IsActive(item.Status) {
-		return fmt.Errorf("cannot move item with status %q", item.Status)
+		return nil, fmt.Errorf("cannot move item with status %q", item.Status)
 	}
 	item.Kind = newKind
 	item.UpdatedAt = time.Now()
 	newPath := store.PathForItem(c.cfg, item)
 	if path == newPath {
-		return store.Write(path, item, body)
+		if err := store.Write(path, item, body); err != nil {
+			return nil, err
+		}
+		return item, nil
 	}
-	return store.Move(path, newPath, item, body)
+	if err := store.Move(path, newPath, item, body); err != nil {
+		return nil, err
+	}
+	return item, nil
 }
 
 func newOrganizeLinkCommand(c *container) *cobra.Command {
@@ -106,7 +120,14 @@ func newOrganizeLinkCommand(c *container) *cobra.Command {
 			}
 			item.Project = projectID
 			item.UpdatedAt = time.Now()
-			return store.Write(path, item, body)
+			if err := store.Write(path, item, body); err != nil {
+				return err
+			}
+			c.printer.PrintUpdates([]output.Update{{
+				Item:    item,
+				Changes: []output.Change{{Key: "project", Value: projectID}},
+			}})
+			return nil
 		},
 	}
 
@@ -141,12 +162,14 @@ func newOrganizeScheduleCommand(c *container) *cobra.Command {
 				return err
 			}
 
+			var changes []output.Change
 			if cmd.Flags().Changed("due") {
 				t, err := parseDate(due)
 				if err != nil {
 					return fmt.Errorf("--due: %w", err)
 				}
 				item.DueAt = t
+				changes = append(changes, output.Change{Key: "due_at", Value: output.FormatTimePtr(t)})
 			}
 			if cmd.Flags().Changed("defer") {
 				t, err := parseDate(defer_)
@@ -154,6 +177,7 @@ func newOrganizeScheduleCommand(c *container) *cobra.Command {
 					return fmt.Errorf("--defer: %w", err)
 				}
 				item.DeferUntil = t
+				changes = append(changes, output.Change{Key: "defer_until", Value: output.FormatTimePtr(t)})
 			}
 			if cmd.Flags().Changed("review") {
 				t, err := parseDate(review)
@@ -161,10 +185,15 @@ func newOrganizeScheduleCommand(c *container) *cobra.Command {
 					return fmt.Errorf("--review: %w", err)
 				}
 				item.ReviewAt = t
+				changes = append(changes, output.Change{Key: "review_at", Value: output.FormatTimePtr(t)})
 			}
 
 			item.UpdatedAt = time.Now()
-			return store.Write(path, item, body)
+			if err := store.Write(path, item, body); err != nil {
+				return err
+			}
+			c.printer.PrintUpdates([]output.Update{{Item: item, Changes: changes}})
+			return nil
 		},
 	}
 

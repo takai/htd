@@ -30,6 +30,7 @@ Command groups map to the five workflow phases plus a low-level `item` group:
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `--json` | flag | `false` | Output in JSON format instead of human-readable text |
+| `--verbose` / `-v` | flag | `false` | Print per-mutation confirmations on mutating commands (see §1.6) |
 | `--path` | string | `$HTD_PATH` or `.` | Specify the htd root directory (overrides `$HTD_PATH`) |
 
 Global options may appear before or after the command group.
@@ -55,6 +56,22 @@ Resolution order for the root directory: `--path` (if given) → `$HTD_PATH` (if
 - **Default (human-readable)**: Tab-separated columns for lists, YAML-like key-value for detail views.
 - **`--json`**: A single JSON object (for `show`/`get`) or a JSON array (for `list`) written to stdout.
 - **Errors**: Written to stderr.
+
+### 1.6 Verbose Mode on Mutating Commands
+
+Mutating commands (see below) exit silently on success by default, which keeps pipelines script-friendly. Pass `--verbose` / `-v` to surface what happened:
+
+- **Text mode**: one `updated <id>: field=value [field=value ...]` line per item. Only the fields actually changed are shown. Date inputs are echoed back in RFC 3339 form (e.g., `--defer 2026-04-27` is reported as `defer_until=2026-04-27T00:00:00+09:00`).
+- **`--json --verbose`**: a single JSON array containing the full, post-mutation item object(s), matching the shape produced by read commands like `item get` / `item list`.
+
+Affected commands:
+
+- `htd clarify update` / `clarify discard`
+- `htd organize move` / `organize link` / `organize schedule`
+- `htd engage done` / `engage cancel`
+- `htd item update` / `item archive` / `item restore`
+
+Commands that already print on success (`capture add`, `organize promote`, `reflect tickler --pull`, `init`) ignore `--verbose`; their output is unchanged.
 
 ---
 

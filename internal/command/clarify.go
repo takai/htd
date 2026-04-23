@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/takai/htd/internal/model"
+	"github.com/takai/htd/internal/output"
 	"github.com/takai/htd/internal/store"
 )
 
@@ -92,11 +93,14 @@ func newClarifyUpdateCommand(c *container) *cobra.Command {
 			if item.Kind != model.KindInbox {
 				return &store.NotFoundError{ID: itemID}
 			}
+			var changes []output.Change
 			if cmd.Flags().Changed("title") {
 				item.Title = title
+				changes = append(changes, output.Change{Key: "title", Value: title})
 			}
 			if cmd.Flags().Changed("body") {
 				existingBody = body
+				changes = append(changes, output.Change{Key: "body", Value: body})
 			}
 			if cmd.Flags().Changed("ref") {
 				if len(refs) == 0 {
@@ -104,9 +108,14 @@ func newClarifyUpdateCommand(c *container) *cobra.Command {
 				} else {
 					item.Refs = refs
 				}
+				changes = append(changes, output.Change{Key: "refs", Value: output.FormatList(item.Refs)})
 			}
 			item.UpdatedAt = time.Now()
-			return store.Write(path, item, existingBody)
+			if err := store.Write(path, item, existingBody); err != nil {
+				return err
+			}
+			c.printer.PrintUpdates([]output.Update{{Item: item, Changes: changes}})
+			return nil
 		},
 	}
 
@@ -137,7 +146,14 @@ func newClarifyDiscardCommand(c *container) *cobra.Command {
 			item.Status = model.StatusDiscarded
 			item.UpdatedAt = time.Now()
 			newPath := store.PathForItem(c.cfg, item)
-			return store.Move(path, newPath, item, body)
+			if err := store.Move(path, newPath, item, body); err != nil {
+				return err
+			}
+			c.printer.PrintUpdates([]output.Update{{
+				Item:    item,
+				Changes: []output.Change{{Key: "status", Value: string(model.StatusDiscarded)}},
+			}})
+			return nil
 		},
 	}
 }
