@@ -2153,6 +2153,199 @@ func TestHTDPathFlagOverridesEnvVar(t *testing.T) {
 	}
 }
 
+// ---------- verbose ----------
+
+func TestMutationsSilentByDefault(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260421-mute", model.KindNextAction, model.StatusActive), "")
+
+	out, errOut, err := runCmd(t, dir, "engage", "done", "20260421-mute")
+	if err != nil {
+		t.Fatalf("engage done: %v", err)
+	}
+	if out != "" {
+		t.Errorf("default stdout should be silent, got %q", out)
+	}
+	if errOut != "" {
+		t.Errorf("default stderr should be silent, got %q", errOut)
+	}
+}
+
+func TestEngageDoneVerboseText(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260421-vd1", model.KindNextAction, model.StatusActive), "")
+	writeItem(t, dir, nowItem("20260421-vd2", model.KindNextAction, model.StatusActive), "")
+
+	out, _, err := runCmd(t, dir, "--verbose", "engage", "done", "20260421-vd1", "20260421-vd2")
+	if err != nil {
+		t.Fatalf("engage done --verbose: %v", err)
+	}
+	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("want 2 lines, got %d: %q", len(lines), out)
+	}
+	want := []string{
+		"updated 20260421-vd1: status=done",
+		"updated 20260421-vd2: status=done",
+	}
+	for i, w := range want {
+		if lines[i] != w {
+			t.Errorf("line %d: want %q, got %q", i, w, lines[i])
+		}
+	}
+}
+
+func TestEngageDoneVerboseJSON(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260421-vj1", model.KindNextAction, model.StatusActive), "")
+	writeItem(t, dir, nowItem("20260421-vj2", model.KindNextAction, model.StatusActive), "")
+
+	out, _, err := runCmd(t, dir, "--verbose", "--json", "engage", "done", "20260421-vj1", "20260421-vj2")
+	if err != nil {
+		t.Fatalf("engage done --verbose --json: %v", err)
+	}
+	var arr []map[string]any
+	if err := json.Unmarshal([]byte(out), &arr); err != nil {
+		t.Fatalf("invalid JSON: %v\noutput: %s", err, out)
+	}
+	if len(arr) != 2 {
+		t.Fatalf("want 2 items, got %d", len(arr))
+	}
+	for i, id := range []string{"20260421-vj1", "20260421-vj2"} {
+		if arr[i]["id"] != id {
+			t.Errorf("item %d id: want %q, got %v", i, id, arr[i]["id"])
+		}
+		if arr[i]["status"] != "done" {
+			t.Errorf("item %d status: want done, got %v", i, arr[i]["status"])
+		}
+	}
+}
+
+func TestOrganizeScheduleVerboseShowsRFC3339(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260421-vs", model.KindNextAction, model.StatusActive), "")
+
+	out, _, err := runCmd(t, dir, "-v", "organize", "schedule", "20260421-vs", "--defer", "2026-04-27")
+	if err != nil {
+		t.Fatalf("organize schedule -v: %v", err)
+	}
+	line := strings.TrimRight(out, "\n")
+	if !strings.HasPrefix(line, "updated 20260421-vs: defer_until=2026-04-27T00:00:00") {
+		t.Errorf("expected defer_until expanded to RFC3339 in verbose output, got %q", line)
+	}
+}
+
+func TestOrganizeMoveVerbose(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260421-vm", model.KindInbox, model.StatusActive), "")
+
+	out, _, err := runCmd(t, dir, "-v", "organize", "move", "next_action", "20260421-vm")
+	if err != nil {
+		t.Fatalf("organize move -v: %v", err)
+	}
+	want := "updated 20260421-vm: kind=next_action\n"
+	if out != want {
+		t.Errorf("want %q, got %q", want, out)
+	}
+}
+
+func TestOrganizeLinkVerbose(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260421-vp", model.KindProject, model.StatusActive), "")
+	writeItem(t, dir, nowItem("20260421-vt", model.KindNextAction, model.StatusActive), "")
+
+	out, _, err := runCmd(t, dir, "-v", "organize", "link", "20260421-vt", "--project", "20260421-vp")
+	if err != nil {
+		t.Fatalf("organize link -v: %v", err)
+	}
+	want := "updated 20260421-vt: project=20260421-vp\n"
+	if out != want {
+		t.Errorf("want %q, got %q", want, out)
+	}
+}
+
+func TestClarifyDiscardVerbose(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260421-vcd", model.KindInbox, model.StatusActive), "")
+
+	out, _, err := runCmd(t, dir, "-v", "clarify", "discard", "20260421-vcd")
+	if err != nil {
+		t.Fatalf("clarify discard -v: %v", err)
+	}
+	want := "updated 20260421-vcd: status=discarded\n"
+	if out != want {
+		t.Errorf("want %q, got %q", want, out)
+	}
+}
+
+func TestClarifyUpdateVerbose(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260421-vcu", model.KindInbox, model.StatusActive), "")
+
+	out, _, err := runCmd(t, dir, "-v", "clarify", "update", "20260421-vcu",
+		"--title", "Renamed", "--ref", "https://example.com/1")
+	if err != nil {
+		t.Fatalf("clarify update -v: %v", err)
+	}
+	line := strings.TrimRight(out, "\n")
+	if !strings.Contains(line, "title=Renamed") {
+		t.Errorf("missing title change: %q", line)
+	}
+	if !strings.Contains(line, "refs=[https://example.com/1]") {
+		t.Errorf("missing refs change: %q", line)
+	}
+}
+
+func TestItemUpdateVerboseMultiField(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260421-viu", model.KindNextAction, model.StatusActive), "")
+
+	out, _, err := runCmd(t, dir, "-v", "item", "update", "20260421-viu",
+		"title=Renamed", "defer_until=2026-04-27", "tags=[cli,docs]")
+	if err != nil {
+		t.Fatalf("item update -v: %v", err)
+	}
+	line := strings.TrimRight(out, "\n")
+	if !strings.Contains(line, "title=Renamed") {
+		t.Errorf("missing title=Renamed: %q", line)
+	}
+	if !strings.Contains(line, "defer_until=2026-04-27T00:00:00") {
+		t.Errorf("defer_until should expand to RFC3339: %q", line)
+	}
+	if !strings.Contains(line, "tags=[cli,docs]") {
+		t.Errorf("tags should be normalized: %q", line)
+	}
+}
+
+func TestItemArchiveVerbose(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260421-via", model.KindNextAction, model.StatusActive), "")
+
+	out, _, err := runCmd(t, dir, "-v", "item", "archive", "20260421-via")
+	if err != nil {
+		t.Fatalf("item archive -v: %v", err)
+	}
+	want := "updated 20260421-via: status=archived\n"
+	if out != want {
+		t.Errorf("want %q, got %q", want, out)
+	}
+}
+
+func TestItemRestoreVerbose(t *testing.T) {
+	dir := setupDir(t)
+	it := nowItem("20260421-vir", model.KindNextAction, model.StatusDone)
+	writeItem(t, dir, it, "")
+
+	out, _, err := runCmd(t, dir, "-v", "item", "restore", "20260421-vir")
+	if err != nil {
+		t.Fatalf("item restore -v: %v", err)
+	}
+	want := "updated 20260421-vir: status=active\n"
+	if out != want {
+		t.Errorf("want %q, got %q", want, out)
+	}
+}
+
 // ---------- helper ----------
 
 func firstN(s string, n int) string {

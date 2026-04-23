@@ -20,6 +20,7 @@ type container struct {
 func NewRootCommand() *cobra.Command {
 	var (
 		jsonMode bool
+		verbose  bool
 		path     string
 		c        container
 	)
@@ -31,6 +32,7 @@ func NewRootCommand() *cobra.Command {
 	}
 
 	root.PersistentFlags().BoolVar(&jsonMode, "json", false, "Output in JSON format")
+	root.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Print per-mutation confirmations on mutating commands")
 	root.PersistentFlags().StringVar(&path, "path", ".", "htd root directory (overrides $HTD_PATH)")
 
 	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
@@ -40,7 +42,7 @@ func NewRootCommand() *cobra.Command {
 			}
 		}
 		c.cfg = config.New(path)
-		c.printer = output.New(cmd.OutOrStdout(), cmd.ErrOrStderr(), jsonMode)
+		c.printer = output.New(cmd.OutOrStdout(), cmd.ErrOrStderr(), jsonMode, verbose)
 		if isCompletionCommand(cmd) {
 			return nil
 		}

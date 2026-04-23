@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -17,13 +18,72 @@ const (
 )
 
 type Printer struct {
-	out  io.Writer
-	err  io.Writer
-	json bool
+	out     io.Writer
+	err     io.Writer
+	json    bool
+	verbose bool
 }
 
-func New(out, err io.Writer, jsonMode bool) *Printer {
-	return &Printer{out: out, err: err, json: jsonMode}
+func New(out, err io.Writer, jsonMode, verbose bool) *Printer {
+	return &Printer{out: out, err: err, json: jsonMode, verbose: verbose}
+}
+
+// Verbose reports whether the printer is in verbose mode. Commands can skip
+// the cost of building an update report when verbose output is disabled.
+func (p *Printer) Verbose() bool { return p.verbose }
+
+// Change is a single field=value pair in a verbose update report.
+type Change struct {
+	Key   string
+	Value string
+}
+
+// Update bundles an item and the fields changed on it, for PrintUpdates.
+type Update struct {
+	Item    *model.Item
+	Changes []Change
+}
+
+// PrintUpdates emits per-mutation confirmations when verbose mode is on; a
+// no-op otherwise so scripts that relied on silence keep working.
+//
+// Text: one `updated <id>: k=v k=v` line per update.
+// JSON: a single array of full item objects, matching read-command shape.
+func (p *Printer) PrintUpdates(updates []Update) {
+	if !p.verbose {
+		return
+	}
+	if p.json {
+		arr := make([]itemJSON, len(updates))
+		for i, u := range updates {
+			arr[i] = toItemJSON(u.Item, "")
+		}
+		data, _ := json.Marshal(arr)
+		fmt.Fprintln(p.out, string(data))
+		return
+	}
+	for _, u := range updates {
+		fmt.Fprint(p.out, "updated ", u.Item.ID, ":")
+		for _, c := range u.Changes {
+			fmt.Fprintf(p.out, " %s=%s", c.Key, c.Value)
+		}
+		fmt.Fprintln(p.out)
+	}
+}
+
+// FormatTimePtr renders a *time.Time as the caller should show it in verbose
+// change reports: empty string when nil (field cleared), RFC3339 otherwise.
+func FormatTimePtr(t *time.Time) string {
+	if t == nil {
+		return ""
+	}
+	return t.Format("2006-01-02T15:04:05Z07:00")
+}
+
+// FormatList renders a string slice as `[a,b,c]` for verbose change reports.
+// An empty slice renders as `[]` so the caller can see the field was cleared.
+func FormatList(xs []string) string {
+	return "[" + strings.Join(xs, ",") + "]"
 }
 
 func (p *Printer) PrintID(id string) {

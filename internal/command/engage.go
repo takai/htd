@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/takai/htd/internal/model"
+	"github.com/takai/htd/internal/output"
 	"github.com/takai/htd/internal/store"
 )
 
@@ -32,12 +33,7 @@ func newEngageDoneCommand(c *container) *cobra.Command {
 		Short: "Mark one or more items as completed",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			for _, id := range args {
-				if err := terminateItem(c, id, model.StatusDone); err != nil {
-					return err
-				}
-			}
-			return nil
+			return runTerminate(c, args, model.StatusDone)
 		},
 	}
 }
@@ -48,14 +44,25 @@ func newEngageCancelCommand(c *container) *cobra.Command {
 		Short: "Cancel one or more active items",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			for _, id := range args {
-				if err := terminateItem(c, id, model.StatusCanceled); err != nil {
-					return err
-				}
-			}
-			return nil
+			return runTerminate(c, args, model.StatusCanceled)
 		},
 	}
+}
+
+func runTerminate(c *container, ids []string, status model.Status) error {
+	var updates []output.Update
+	for _, id := range ids {
+		item, err := terminateItem(c, id, status)
+		if err != nil {
+			return err
+		}
+		updates = append(updates, output.Update{
+			Item:    item,
+			Changes: []output.Change{{Key: "status", Value: string(status)}},
+		})
+	}
+	c.printer.PrintUpdates(updates)
+	return nil
 }
 
 func newEngageNextActionCommand(c *container) *cobra.Command {
@@ -168,20 +175,23 @@ func matchAllTags(it *model.Item, tags []string) bool {
 	return true
 }
 
-func terminateItem(c *container, itemID string, status model.Status) error {
+func terminateItem(c *container, itemID string, status model.Status) (*model.Item, error) {
 	path, err := store.FindItem(c.cfg, itemID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	item, body, err := store.Read(path)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !model.IsActive(item.Status) {
-		return fmt.Errorf("item %q is not active (status: %s)", itemID, item.Status)
+		return nil, fmt.Errorf("item %q is not active (status: %s)", itemID, item.Status)
 	}
 	item.Status = status
 	item.UpdatedAt = time.Now()
 	newPath := store.PathForItem(c.cfg, item)
-	return store.Move(path, newPath, item, body)
+	if err := store.Move(path, newPath, item, body); err != nil {
+		return nil, err
+	}
+	return item, nil
 }

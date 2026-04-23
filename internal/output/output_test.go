@@ -27,7 +27,7 @@ func makeItem(id string, kind model.Kind) *model.Item {
 
 func TestPrintItemText(t *testing.T) {
 	var out bytes.Buffer
-	p := output.New(&out, &bytes.Buffer{}, false)
+	p := output.New(&out, &bytes.Buffer{}, false, false)
 	item := makeItem("20260417-test", model.KindInbox)
 	p.PrintItem(item, "some body text")
 
@@ -42,7 +42,7 @@ func TestPrintItemText(t *testing.T) {
 
 func TestPrintItemJSON(t *testing.T) {
 	var out bytes.Buffer
-	p := output.New(&out, &bytes.Buffer{}, true)
+	p := output.New(&out, &bytes.Buffer{}, true, false)
 	item := makeItem("20260417-json", model.KindNextAction)
 	p.PrintItem(item, "body content")
 
@@ -60,7 +60,7 @@ func TestPrintItemJSON(t *testing.T) {
 
 func TestPrintItemsText(t *testing.T) {
 	var out bytes.Buffer
-	p := output.New(&out, &bytes.Buffer{}, false)
+	p := output.New(&out, &bytes.Buffer{}, false, false)
 	items := []*model.Item{
 		makeItem("20260417-a", model.KindInbox),
 		makeItem("20260417-b", model.KindProject),
@@ -75,7 +75,7 @@ func TestPrintItemsText(t *testing.T) {
 
 func TestPrintItemsTextTruncatesTitleByRunes(t *testing.T) {
 	var out bytes.Buffer
-	p := output.New(&out, &bytes.Buffer{}, false)
+	p := output.New(&out, &bytes.Buffer{}, false, false)
 	long := strings.Repeat("チ", 50)
 	item := makeItem("20260417-a", model.KindInbox)
 	item.Title = long
@@ -92,7 +92,7 @@ func TestPrintItemsTextTruncatesTitleByRunes(t *testing.T) {
 
 func TestPrintItemsTextAlignsLongIDs(t *testing.T) {
 	var out bytes.Buffer
-	p := output.New(&out, &bytes.Buffer{}, false)
+	p := output.New(&out, &bytes.Buffer{}, false, false)
 	longID := "20260417-" + strings.Repeat("x", 60)
 	items := []*model.Item{
 		makeItem(longID, model.KindInbox),
@@ -119,7 +119,7 @@ func TestPrintItemsTextAlignsLongIDs(t *testing.T) {
 
 func TestPrintItemsJSON(t *testing.T) {
 	var out bytes.Buffer
-	p := output.New(&out, &bytes.Buffer{}, true)
+	p := output.New(&out, &bytes.Buffer{}, true, false)
 	items := []*model.Item{
 		makeItem("20260417-x", model.KindInbox),
 	}
@@ -136,7 +136,7 @@ func TestPrintItemsJSON(t *testing.T) {
 
 func TestPrintError(t *testing.T) {
 	var errOut bytes.Buffer
-	p := output.New(&bytes.Buffer{}, &errOut, false)
+	p := output.New(&bytes.Buffer{}, &errOut, false, false)
 	p.PrintError("something went wrong")
 
 	if !strings.Contains(errOut.String(), "something went wrong") {
@@ -146,7 +146,7 @@ func TestPrintError(t *testing.T) {
 
 func TestPrintID(t *testing.T) {
 	var out bytes.Buffer
-	p := output.New(&out, &bytes.Buffer{}, false)
+	p := output.New(&out, &bytes.Buffer{}, false, false)
 	p.PrintID("20260417-new_item")
 
 	if strings.TrimSpace(out.String()) != "20260417-new_item" {
@@ -156,7 +156,7 @@ func TestPrintID(t *testing.T) {
 
 func TestPrintPathsText(t *testing.T) {
 	var out bytes.Buffer
-	p := output.New(&out, &bytes.Buffer{}, false)
+	p := output.New(&out, &bytes.Buffer{}, false, false)
 	p.PrintPaths([]string{"items/inbox", "items/project", "reference"})
 
 	want := "items/inbox\nitems/project\nreference\n"
@@ -167,7 +167,7 @@ func TestPrintPathsText(t *testing.T) {
 
 func TestPrintPathsJSON(t *testing.T) {
 	var out bytes.Buffer
-	p := output.New(&out, &bytes.Buffer{}, true)
+	p := output.New(&out, &bytes.Buffer{}, true, false)
 	p.PrintPaths([]string{"items/inbox", "reference"})
 
 	var arr []string
@@ -176,5 +176,96 @@ func TestPrintPathsJSON(t *testing.T) {
 	}
 	if len(arr) != 2 || arr[0] != "items/inbox" || arr[1] != "reference" {
 		t.Errorf("PrintPaths JSON: got %v", arr)
+	}
+}
+
+func TestPrintUpdatesSilentByDefault(t *testing.T) {
+	var out bytes.Buffer
+	p := output.New(&out, &bytes.Buffer{}, false, false)
+	item := makeItem("20260417-mute", model.KindInbox)
+	p.PrintUpdates([]output.Update{{
+		Item:    item,
+		Changes: []output.Change{{Key: "status", Value: "done"}},
+	}})
+	if out.Len() != 0 {
+		t.Errorf("PrintUpdates without --verbose should be silent, got %q", out.String())
+	}
+}
+
+func TestPrintUpdatesVerboseText(t *testing.T) {
+	var out bytes.Buffer
+	p := output.New(&out, &bytes.Buffer{}, false, true)
+	item := makeItem("20260417-v", model.KindInbox)
+	p.PrintUpdates([]output.Update{{
+		Item: item,
+		Changes: []output.Change{
+			{Key: "kind", Value: "next_action"},
+			{Key: "due_at", Value: "2026-05-01T00:00:00Z"},
+		},
+	}})
+	want := "updated 20260417-v: kind=next_action due_at=2026-05-01T00:00:00Z\n"
+	if got := out.String(); got != want {
+		t.Errorf("verbose text: want %q, got %q", want, got)
+	}
+}
+
+func TestPrintUpdatesVerboseTextBulk(t *testing.T) {
+	var out bytes.Buffer
+	p := output.New(&out, &bytes.Buffer{}, false, true)
+	a := makeItem("20260417-a", model.KindInbox)
+	b := makeItem("20260417-b", model.KindInbox)
+	p.PrintUpdates([]output.Update{
+		{Item: a, Changes: []output.Change{{Key: "status", Value: "done"}}},
+		{Item: b, Changes: []output.Change{{Key: "status", Value: "done"}}},
+	})
+	lines := strings.Split(strings.TrimRight(out.String(), "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("want 2 lines, got %d: %q", len(lines), out.String())
+	}
+	if !strings.HasPrefix(lines[0], "updated 20260417-a:") {
+		t.Errorf("line 0: %q", lines[0])
+	}
+	if !strings.HasPrefix(lines[1], "updated 20260417-b:") {
+		t.Errorf("line 1: %q", lines[1])
+	}
+}
+
+func TestPrintUpdatesVerboseJSON(t *testing.T) {
+	var out bytes.Buffer
+	p := output.New(&out, &bytes.Buffer{}, true, true)
+	a := makeItem("20260417-a", model.KindInbox)
+	b := makeItem("20260417-b", model.KindProject)
+	p.PrintUpdates([]output.Update{
+		{Item: a, Changes: []output.Change{{Key: "status", Value: "done"}}},
+		{Item: b, Changes: []output.Change{{Key: "status", Value: "done"}}},
+	})
+	var arr []map[string]any
+	if err := json.Unmarshal(out.Bytes(), &arr); err != nil {
+		t.Fatalf("invalid JSON: %v\noutput: %s", err, out.String())
+	}
+	if len(arr) != 2 {
+		t.Fatalf("want 2 items in array, got %d", len(arr))
+	}
+	if arr[0]["id"] != "20260417-a" || arr[1]["id"] != "20260417-b" {
+		t.Errorf("JSON IDs: got %v", arr)
+	}
+}
+
+func TestFormatTimePtr(t *testing.T) {
+	if got := output.FormatTimePtr(nil); got != "" {
+		t.Errorf("nil: want %q, got %q", "", got)
+	}
+	ts := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+	if got := output.FormatTimePtr(&ts); got != "2026-05-01T00:00:00Z" {
+		t.Errorf("ts: got %q", got)
+	}
+}
+
+func TestFormatList(t *testing.T) {
+	if got := output.FormatList(nil); got != "[]" {
+		t.Errorf("nil: want %q, got %q", "[]", got)
+	}
+	if got := output.FormatList([]string{"a", "b", "c"}); got != "[a,b,c]" {
+		t.Errorf("a,b,c: got %q", got)
 	}
 }
