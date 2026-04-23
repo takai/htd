@@ -570,9 +570,9 @@ func TestOrganizeScheduleRFC3339Defer(t *testing.T) {
 		t.Errorf("defer_until: want %s, got %s", wantFuture, got.DeferUntil)
 	}
 
-	out, _, err := runCmd(t, dir, "engage", "next-action")
+	out, _, err := runCmd(t, dir, "engage", "next-actions")
 	if err != nil {
-		t.Fatalf("engage next-action: %v", err)
+		t.Fatalf("engage next-actions: %v", err)
 	}
 	if strings.Contains(out, "20260417-rfc_defer_future") {
 		t.Errorf("item with defer_until in the future should be hidden: %q", out)
@@ -599,9 +599,9 @@ func TestEngageNextActionSortsIntraDay(t *testing.T) {
 	writeItem(t, dir, m, "")
 	writeItem(t, dir, a, "")
 
-	out, _, err := runCmd(t, dir, "engage", "next-action")
+	out, _, err := runCmd(t, dir, "engage", "next-actions")
 	if err != nil {
-		t.Fatalf("engage next-action: %v", err)
+		t.Fatalf("engage next-actions: %v", err)
 	}
 
 	want := []string{
@@ -904,9 +904,9 @@ func TestEngageNextAction(t *testing.T) {
 	deferred.DeferUntil = &future
 	writeItem(t, dir, deferred, "")
 
-	out, _, err := runCmd(t, dir, "engage", "next-action")
+	out, _, err := runCmd(t, dir, "engage", "next-actions")
 	if err != nil {
-		t.Fatalf("engage next-action: %v", err)
+		t.Fatalf("engage next-actions: %v", err)
 	}
 	if !strings.Contains(out, "20260417-na_ready") {
 		t.Errorf("missing ready next action: %q", out)
@@ -938,9 +938,9 @@ func TestEngageNextActionIncludesDueToday(t *testing.T) {
 	upcoming.DueAt = &future
 	writeItem(t, dir, upcoming, "")
 
-	out, _, err := runCmd(t, dir, "engage", "next-action")
+	out, _, err := runCmd(t, dir, "engage", "next-actions")
 	if err != nil {
-		t.Fatalf("engage next-action: %v", err)
+		t.Fatalf("engage next-actions: %v", err)
 	}
 	for _, id := range []string{"20260420-due_today", "20260420-overdue", "20260420-upcoming"} {
 		if !strings.Contains(out, id) {
@@ -968,9 +968,9 @@ func TestEngageNextActionSortsByDueAt(t *testing.T) {
 	writeItem(t, dir, c, "")
 	writeItem(t, dir, d, "")
 
-	out, _, err := runCmd(t, dir, "engage", "next-action")
+	out, _, err := runCmd(t, dir, "engage", "next-actions")
 	if err != nil {
-		t.Fatalf("engage next-action: %v", err)
+		t.Fatalf("engage next-actions: %v", err)
 	}
 
 	want := []string{
@@ -1003,9 +1003,9 @@ func TestEngageNextActionShowsDueAtColumn(t *testing.T) {
 	it.Project = "20260420-some_proj"
 	writeItem(t, dir, it, "")
 
-	out, _, err := runCmd(t, dir, "engage", "next-action")
+	out, _, err := runCmd(t, dir, "engage", "next-actions")
 	if err != nil {
-		t.Fatalf("engage next-action: %v", err)
+		t.Fatalf("engage next-actions: %v", err)
 	}
 	if !strings.Contains(out, "DUE_AT") {
 		t.Errorf("header should include DUE_AT column: %q", out)
@@ -1030,9 +1030,9 @@ func TestEngageNextActionFilterProject(t *testing.T) {
 	writeItem(t, dir, a, "")
 	writeItem(t, dir, b, "")
 
-	out, _, err := runCmd(t, dir, "engage", "next-action", "--project", "20260417-proj_a")
+	out, _, err := runCmd(t, dir, "engage", "next-actions", "--project", "20260417-proj_a")
 	if err != nil {
-		t.Fatalf("engage next-action --project: %v", err)
+		t.Fatalf("engage next-actions --project: %v", err)
 	}
 	if !strings.Contains(out, "20260417-na_a") {
 		t.Errorf("missing project-a next action: %q", out)
@@ -1051,15 +1051,36 @@ func TestEngageNextActionFilterTag(t *testing.T) {
 	writeItem(t, dir, tagged, "")
 	writeItem(t, dir, other, "")
 
-	out, _, err := runCmd(t, dir, "engage", "next-action", "--tag", "urgent")
+	out, _, err := runCmd(t, dir, "engage", "next-actions", "--tag", "urgent")
 	if err != nil {
-		t.Fatalf("engage next-action --tag: %v", err)
+		t.Fatalf("engage next-actions --tag: %v", err)
 	}
 	if !strings.Contains(out, "20260417-na_tagged") {
 		t.Errorf("missing tagged next action: %q", out)
 	}
 	if strings.Contains(out, "20260417-na_other") {
 		t.Errorf("should not include untagged next action: %q", out)
+	}
+}
+
+func TestEngageNextActionDeprecatedAlias(t *testing.T) {
+	dir := setupDir(t)
+	it := nowItem("20260417-na_alias", model.KindNextAction, model.StatusActive)
+	writeItem(t, dir, it, "")
+
+	out, errOut, err := runCmd(t, dir, "engage", "next-action")
+	if err != nil {
+		t.Fatalf("engage next-action (deprecated): %v", err)
+	}
+	if !strings.Contains(out, "20260417-na_alias") {
+		t.Errorf("deprecated alias should still list items: %q", out)
+	}
+	combined := out + errOut
+	if !strings.Contains(combined, "deprecated") {
+		t.Errorf("deprecation warning expected in output, got stdout=%q stderr=%q", out, errOut)
+	}
+	if !strings.Contains(combined, "next-actions") {
+		t.Errorf("deprecation warning should point at 'next-actions', got stdout=%q stderr=%q", out, errOut)
 	}
 }
 

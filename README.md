@@ -70,7 +70,7 @@ htd reflect done --since DATE
 ### Engage
 
 ```
-htd engage next-action [--project PROJECT_ID] [--tag TAG]...
+htd engage next-actions [--project PROJECT_ID] [--tag TAG]...
 htd engage waiting [--stale-days N]
 htd engage tickler
 htd engage done ID [ID...]

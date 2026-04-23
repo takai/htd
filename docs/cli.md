@@ -313,7 +313,7 @@ htd organize schedule ID [--due DATE] [--defer DATE] [--review DATE]
 
 At least one date option must be provided. To clear a date, pass `--due ""`.
 
-When a datetime is supplied, it is preserved to the second and `engage next-action` / `reflect next-actions` sort intra-day by the exact moment. A date-only value is interpreted as midnight in the local timezone.
+When a datetime is supplied, it is preserved to the second and `engage next-actions` / `reflect next-actions` sort intra-day by the exact moment. A date-only value is interpreted as midnight in the local timezone.
 
 ### 4.5 `htd organize promote`
 
@@ -553,12 +553,12 @@ htd engage cancel ID [ID...]
 - Only active items can be canceled.
 - `inbox` items can also be canceled via this command, though `clarify discard` is preferred for inbox items that were never actionable.
 
-### 6.3 `htd engage next-action`
+### 6.3 `htd engage next-actions`
 
 List next actions that are ready to work on now.
 
 ```
-htd engage next-action [--project PROJECT_ID] [--tag TAG]...
+htd engage next-actions [--project PROJECT_ID] [--tag TAG]...
 ```
 
 | Option | Required | Description |
@@ -574,7 +574,14 @@ htd engage next-action [--project PROJECT_ID] [--tag TAG]...
 4. Display: `ID`, `TITLE`, `PROJECT`, `DUE_AT`.
 5. Sort by `due_at` ascending (items without due dates last). Datetimes sort by their exact moment; date-only values sort as midnight local time.
 
-This command overlaps with `reflect next-actions` in content; the difference is intent (Engage = pick work; Reflect = review system) plus the filter flags above.
+All list-returning commands in this CLI use the plural form that matches the list they query. `engage next-actions` and `reflect next-actions` both return the same shape of list; the difference between them is mechanical, not judgment-based:
+
+- `reflect next-actions` is the survey view of the full list.
+- `engage next-actions` is the narrowing view for picking work right now, via `--project` and `--tag` (and future mechanical predicates such as parent-project activity).
+
+Priority, context, time, and energy are not applied inside `htd` — those judgments stay with the caller, who can compose a `--query` expression on `item list`, pipe the JSON, or scan the returned list by eye.
+
+The previous singular alias `htd engage next-action` is still accepted but prints a deprecation warning; update scripts to the plural form.
 
 ### 6.4 `htd engage waiting`
 
@@ -915,7 +922,7 @@ htd completion zsh > "${fpath[1]}/_htd"
 | `htd reflect tickler [--pull]` | List fired tickler items, or pull them into the inbox |
 | `htd engage done ID [ID...]` | Mark one or more items as done |
 | `htd engage cancel ID [ID...]` | Cancel one or more active items |
-| `htd engage next-action` | List next actions ready to work on now |
+| `htd engage next-actions` | List next actions ready to work on now |
 | `htd engage waiting` | List waiting-for items that need follow-up |
 | `htd item get ID` | Get any item by ID |
 | `htd item list` | List items with filters (supports `--query` DSL) |

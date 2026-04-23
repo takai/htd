@@ -21,7 +21,8 @@ func newEngageCommand(c *container) *cobra.Command {
 	cmd.AddCommand(
 		newEngageDoneCommand(c),
 		newEngageCancelCommand(c),
-		newEngageNextActionCommand(c),
+		newEngageNextActionsCommand(c),
+		newEngageNextActionDeprecatedCommand(c),
 		newEngageWaitingCommand(c),
 	)
 	return cmd
@@ -65,14 +66,29 @@ func runTerminate(c *container, ids []string, status model.Status) error {
 	return nil
 }
 
-func newEngageNextActionCommand(c *container) *cobra.Command {
+func newEngageNextActionsCommand(c *container) *cobra.Command {
+	cmd := buildEngageNextActionsCommand(c)
+	cmd.Use = "next-actions"
+	return cmd
+}
+
+// newEngageNextActionDeprecatedCommand keeps the old singular name working as a
+// hidden alias that prints a deprecation warning. Remove after one release cycle.
+func newEngageNextActionDeprecatedCommand(c *container) *cobra.Command {
+	cmd := buildEngageNextActionsCommand(c)
+	cmd.Use = "next-action"
+	cmd.Deprecated = `use "htd engage next-actions" instead`
+	cmd.Hidden = true
+	return cmd
+}
+
+func buildEngageNextActionsCommand(c *container) *cobra.Command {
 	var (
 		projectID string
 		tags      []string
 	)
 
 	cmd := &cobra.Command{
-		Use:   "next-action",
 		Short: "List next actions ready to work on now",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			kind := model.KindNextAction

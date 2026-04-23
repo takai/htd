@@ -12,7 +12,7 @@ The user wants to act on their system. Give them an overview of what needs atten
 Run these three in parallel and parse the JSON:
 
 ```bash
-htd engage next-action --json
+htd engage next-actions --json
 htd engage waiting --json
 htd reflect tickler --json
 ```
@@ -37,8 +37,8 @@ Ask which category (or "done", "none") they want to dive into:
 
 Ask briefly about context and time: "How long do you have, and what kind of work fits right now (deep focus, quick wins, specific project)?" Use the answers to narrow:
 
-- For a specific project: `htd engage next-action --project <id> --json`.
-- For a tag/context: `htd engage next-action --tag <t> --json`.
+- For a specific project: `htd engage next-actions --project <id> --json`.
+- For a tag/context: `htd engage next-actions --tag <t> --json`.
 - No narrowing: use the existing list.
 
 Propose 1–3 candidates. Don't pick for the user. Once they choose, step back — they'll go work on it, and mark it done later with `htd engage done <id>`.
