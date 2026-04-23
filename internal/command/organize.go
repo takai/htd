@@ -20,6 +20,7 @@ func newOrganizeCommand(c *container) *cobra.Command {
 	cmd.AddCommand(
 		newOrganizeMoveCommand(c),
 		newOrganizeLinkCommand(c),
+		newOrganizeUnlinkCommand(c),
 		newOrganizeScheduleCommand(c),
 		newOrganizePromoteCommand(c),
 	)
@@ -134,6 +135,36 @@ func newOrganizeLinkCommand(c *container) *cobra.Command {
 	cmd.Flags().StringVar(&projectID, "project", "", "Project ID to link to (empty string to unlink)")
 	_ = cmd.MarkFlagRequired("project")
 	return cmd
+}
+
+func newOrganizeUnlinkCommand(c *container) *cobra.Command {
+	return &cobra.Command{
+		Use:   "unlink ID",
+		Short: "Clear the project link on an item",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			itemID := args[0]
+
+			path, err := store.FindItem(c.cfg, itemID)
+			if err != nil {
+				return err
+			}
+			item, body, err := store.Read(path)
+			if err != nil {
+				return err
+			}
+			item.Project = ""
+			item.UpdatedAt = time.Now()
+			if err := store.Write(path, item, body); err != nil {
+				return err
+			}
+			c.printer.PrintUpdates([]output.Update{{
+				Item:    item,
+				Changes: []output.Change{{Key: "project", Value: ""}},
+			}})
+			return nil
+		},
+	}
 }
 
 func newOrganizeScheduleCommand(c *container) *cobra.Command {

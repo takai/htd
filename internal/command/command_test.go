@@ -459,6 +459,45 @@ func TestOrganizeLink(t *testing.T) {
 	}
 }
 
+func TestOrganizeUnlink(t *testing.T) {
+	dir := setupDir(t)
+	task := nowItem("20260423-u_task", model.KindNextAction, model.StatusActive)
+	task.Project = "20260423-u_proj"
+	writeItem(t, dir, task, "")
+
+	_, _, err := runCmd(t, dir, "organize", "unlink", "20260423-u_task")
+	if err != nil {
+		t.Fatalf("organize unlink: %v", err)
+	}
+
+	got, _ := readItem(t, dir, "20260423-u_task")
+	if got.Project != "" {
+		t.Errorf("project: want empty, got %q", got.Project)
+	}
+}
+
+func TestOrganizeUnlinkIdempotent(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260423-u_plain", model.KindNextAction, model.StatusActive), "")
+
+	if _, _, err := runCmd(t, dir, "organize", "unlink", "20260423-u_plain"); err != nil {
+		t.Fatalf("organize unlink on unlinked item: %v", err)
+	}
+
+	got, _ := readItem(t, dir, "20260423-u_plain")
+	if got.Project != "" {
+		t.Errorf("project: want empty, got %q", got.Project)
+	}
+}
+
+func TestOrganizeUnlinkNotFound(t *testing.T) {
+	dir := setupDir(t)
+	_, _, err := runCmd(t, dir, "organize", "unlink", "20260423-missing")
+	if !store.IsNotFound(err) {
+		t.Errorf("expected NotFoundError, got %v", err)
+	}
+}
+
 func TestOrganizeSchedule(t *testing.T) {
 	dir := setupDir(t)
 	writeItem(t, dir, nowItem("20260417-sched", model.KindNextAction, model.StatusActive), "")
@@ -2259,6 +2298,22 @@ func TestOrganizeLinkVerbose(t *testing.T) {
 		t.Fatalf("organize link -v: %v", err)
 	}
 	want := "updated 20260421-vt: project=20260421-vp\n"
+	if out != want {
+		t.Errorf("want %q, got %q", want, out)
+	}
+}
+
+func TestOrganizeUnlinkVerbose(t *testing.T) {
+	dir := setupDir(t)
+	task := nowItem("20260423-vu_task", model.KindNextAction, model.StatusActive)
+	task.Project = "20260423-vu_proj"
+	writeItem(t, dir, task, "")
+
+	out, _, err := runCmd(t, dir, "-v", "organize", "unlink", "20260423-vu_task")
+	if err != nil {
+		t.Fatalf("organize unlink -v: %v", err)
+	}
+	want := "updated 20260423-vu_task: project=\n"
 	if out != want {
 		t.Errorf("want %q, got %q", want, out)
 	}

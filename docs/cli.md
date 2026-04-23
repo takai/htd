@@ -67,7 +67,7 @@ Mutating commands (see below) exit silently on success by default, which keeps p
 Affected commands:
 
 - `htd clarify update` / `clarify discard`
-- `htd organize move` / `organize link` / `organize schedule`
+- `htd organize move` / `organize link` / `organize unlink` / `organize schedule`
 - `htd engage done` / `engage cancel`
 - `htd item update` / `item archive` / `item restore`
 
@@ -270,9 +270,29 @@ htd organize link ID --project PROJECT_ID
 2. Set the `project` field in the item's front matter.
 3. Set `updated_at` to the current timestamp.
 
-To unlink, pass `--project ""` (empty string).
+To unlink, use `htd organize unlink ID`. Passing `--project ""` is still accepted as a legacy alias and will be removed in a future release.
 
-### 4.3 `htd organize schedule`
+### 4.3 `htd organize unlink`
+
+Clear the project link on an item.
+
+```
+htd organize unlink ID
+```
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `ID` | yes | The item ID whose `project` field should be cleared |
+
+**Behavior:**
+
+1. Find the item across all `items/<kind>/` directories.
+2. Clear the `project` field in the item's front matter.
+3. Set `updated_at` to the current timestamp.
+
+Idempotent: unlinking an item that is not currently linked to a project is a silent no-op (aside from bumping `updated_at`).
+
+### 4.4 `htd organize schedule`
 
 Set scheduling-related dates on an item.
 
@@ -295,7 +315,7 @@ At least one date option must be provided. To clear a date, pass `--due ""`.
 
 When a datetime is supplied, it is preserved to the second and `engage next-action` / `reflect next-actions` sort intra-day by the exact moment. A date-only value is interpreted as midnight in the local timezone.
 
-### 4.4 `htd organize promote`
+### 4.5 `htd organize promote`
 
 Promote an item to a project in one shot, creating and linking initial next-action children.
 
@@ -854,6 +874,7 @@ htd completion zsh > "${fpath[1]}/_htd"
 | `htd clarify discard ID` | Discard an inbox item |
 | `htd organize move KIND ID [ID...]` | Change the category of one or more items |
 | `htd organize link ID --project PID` | Link item to a project |
+| `htd organize unlink ID` | Clear the project link on an item |
 | `htd organize schedule ID` | Set dates on an item |
 | `htd organize promote ID --child TITLE...` | Promote to a project with next-action children |
 | `htd reflect next-actions` | List active next actions |
