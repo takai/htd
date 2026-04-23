@@ -73,7 +73,7 @@ All commands accept `--json` for machine-readable output and `--path` to target 
 - `htd reflect tickler [--pull]` — ticklers whose `defer_until` (or `review_at` fallback) is today or past. With `--pull`, move them into the inbox for re-clarification (clears `defer_until`, keeps `review_at`).
 
 **Engage** (act on the system)
-- `htd engage next-action [--project ID] [--tag T]...` — what's ready to work on now.
+- `htd engage next-actions [--project ID] [--tag T]...` — what's ready to work on now.
 - `htd engage waiting [--stale-days N]` — waiting-for items untouched ≥ N days (default 7). JSON includes `age_days`.
 - `htd engage done ID [ID...]` — accepts multiple IDs.
 - `htd engage cancel ID [ID...]` — accepts multiple IDs.
