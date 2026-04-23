@@ -1903,6 +1903,127 @@ func TestItemUpdateRefsField(t *testing.T) {
 	}
 }
 
+func TestItemUpdateDueAt(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260417-iu_due", model.KindNextAction, model.StatusActive), "")
+
+	const input = "2026-05-01T14:30:00+09:00"
+	if _, _, err := runCmd(t, dir, "item", "update", "20260417-iu_due", "due_at="+input); err != nil {
+		t.Fatalf("item update due_at: %v", err)
+	}
+
+	want, _ := time.Parse(time.RFC3339, input)
+	got, _ := readItem(t, dir, "20260417-iu_due")
+	if got.DueAt == nil || !got.DueAt.Equal(want) {
+		t.Errorf("due_at: want %s, got %v", want, got.DueAt)
+	}
+
+	if _, _, err := runCmd(t, dir, "item", "update", "20260417-iu_due", "due_at="); err != nil {
+		t.Fatalf("item update due_at= (clear): %v", err)
+	}
+	got, _ = readItem(t, dir, "20260417-iu_due")
+	if got.DueAt != nil {
+		t.Errorf("due_at: want nil after clear, got %s", got.DueAt)
+	}
+}
+
+func TestItemUpdateDeferUntil(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260417-iu_defer", model.KindNextAction, model.StatusActive), "")
+
+	if _, _, err := runCmd(t, dir, "item", "update", "20260417-iu_defer", "defer_until=2026-04-27"); err != nil {
+		t.Fatalf("item update defer_until: %v", err)
+	}
+	got, _ := readItem(t, dir, "20260417-iu_defer")
+	if got.DeferUntil == nil {
+		t.Fatal("defer_until: want non-nil, got nil")
+	}
+	if y, m, d := got.DeferUntil.Date(); y != 2026 || m != time.April || d != 27 {
+		t.Errorf("defer_until date: want 2026-04-27, got %04d-%02d-%02d", y, m, d)
+	}
+}
+
+func TestItemUpdateReviewAt(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260417-iu_rev", model.KindProject, model.StatusActive), "")
+
+	if _, _, err := runCmd(t, dir, "item", "update", "20260417-iu_rev", "review_at=2026-05-15"); err != nil {
+		t.Fatalf("item update review_at: %v", err)
+	}
+	got, _ := readItem(t, dir, "20260417-iu_rev")
+	if got.ReviewAt == nil {
+		t.Fatal("review_at: want non-nil, got nil")
+	}
+	if y, m, d := got.ReviewAt.Date(); y != 2026 || m != time.May || d != 15 {
+		t.Errorf("review_at date: want 2026-05-15, got %04d-%02d-%02d", y, m, d)
+	}
+}
+
+func TestItemUpdateUnknownField(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260417-iu_unk", model.KindInbox, model.StatusActive), "")
+
+	_, _, err := runCmd(t, dir, "item", "update", "20260417-iu_unk", "titel=Oops")
+	if err == nil {
+		t.Fatal("expected error for unknown field, got nil")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, `unknown field "titel"`) {
+		t.Errorf("error should name the unknown field, got: %v", err)
+	}
+	if !strings.Contains(msg, "supported:") || !strings.Contains(msg, "title") || !strings.Contains(msg, "due_at") {
+		t.Errorf("error should list supported fields, got: %v", err)
+	}
+}
+
+func TestItemUpdateProtectedField(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260417-iu_prot", model.KindInbox, model.StatusActive), "")
+
+	for _, field := range []string{"id", "created_at"} {
+		_, _, err := runCmd(t, dir, "item", "update", "20260417-iu_prot", field+"=whatever")
+		if err == nil {
+			t.Errorf("%s=: expected error, got nil", field)
+			continue
+		}
+		if !strings.Contains(err.Error(), "protected") {
+			t.Errorf("%s=: error should mention 'protected', got: %v", field, err)
+		}
+	}
+
+	got, _ := readItem(t, dir, "20260417-iu_prot")
+	if got.ID != "20260417-iu_prot" {
+		t.Errorf("id should be unchanged, got %q", got.ID)
+	}
+}
+
+func TestItemUpdateBody(t *testing.T) {
+	dir := setupDir(t)
+	item := nowItem("20260417-iu_body", model.KindNextAction, model.StatusActive)
+	// Sleep 1 ms-ish gap so updated_at strictly moves forward.
+	item.UpdatedAt = item.UpdatedAt.Add(-time.Second)
+	writeItem(t, dir, item, "original body\n")
+	before := item.UpdatedAt
+
+	if _, _, err := runCmd(t, dir, "item", "update", "20260417-iu_body", "body=rewritten body"); err != nil {
+		t.Fatalf("item update body=: %v", err)
+	}
+
+	got, body := readItem(t, dir, "20260417-iu_body")
+	if !strings.Contains(body, "rewritten body") {
+		t.Errorf("body should be rewritten, got %q", body)
+	}
+	if strings.Contains(body, "original body") {
+		t.Errorf("body should not retain original, got %q", body)
+	}
+	if !got.UpdatedAt.After(before) {
+		t.Errorf("updated_at should advance: before=%s after=%s", before, got.UpdatedAt)
+	}
+	if got.Title != "20260417-iu_body" {
+		t.Errorf("title should be unchanged, got %q", got.Title)
+	}
+}
+
 func TestItemArchive(t *testing.T) {
 	dir := setupDir(t)
 	writeItem(t, dir, nowItem("20260417-arch", model.KindNextAction, model.StatusActive), "")

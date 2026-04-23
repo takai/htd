@@ -721,24 +721,53 @@ htd item list --kind next_action --query 'tag:bug'
 
 ### 7.3 `htd item update`
 
-Update arbitrary fields on an item.
+Update fields on an item. Each argument is a `FIELD=VALUE` pair; multiple pairs are applied in order and written in a single file update.
 
 ```
 htd item update ID FIELD=VALUE [FIELD=VALUE]...
 ```
 
-**Behavior:**
+**Supported fields:**
 
-1. Find the item by ID.
-2. Update each specified front matter field.
-3. Set `updated_at` to the current timestamp.
-4. If `kind` is changed, move the file to the appropriate directory.
-5. If `status` is changed to a non-active status, move to `archive/items/`.
+| Field | Format | Notes |
+|-------|--------|-------|
+| `title` | string | Short description |
+| `body` | string | Markdown body (the content after front matter, not a front-matter field itself) |
+| `kind` | enum | One of `inbox`, `next_action`, `project`, `waiting_for`, `someday`, `tickler` |
+| `status` | enum | One of `active`, `done`, `canceled`, `discarded`, `archived` |
+| `project` | string | ID of a project-kind item |
+| `source` | string | Origin string (e.g., `manual`, `email`, `slack`) |
+| `tags` | list | Comma-separated, optionally bracketed: `foo,bar` or `[foo,bar]`. Pass `tags=` (empty) to clear. |
+| `refs` | list | Comma-separated URL list; same syntax as `tags`. |
+| `due_at` | date / datetime | `YYYY-MM-DD` or RFC 3339 (e.g., `2026-05-01T14:30:00+09:00`). Pass `due_at=` to clear. |
+| `defer_until` | date / datetime | Same format as `due_at`. |
+| `review_at` | date | Same format as `due_at`. |
+
+Unknown fields are rejected with an error that lists the supported fields.
 
 **Protected fields** (cannot be changed):
 
 - `id`
 - `created_at`
+
+**Behavior:**
+
+1. Find the item by ID.
+2. Update each specified front matter field (or body, for `body=`).
+3. Set `updated_at` to the current timestamp.
+4. If `kind` is changed, move the file to the appropriate directory.
+5. If `status` is changed to a non-active status, move to `archive/items/`.
+
+**Cross-references:**
+
+`item update` is the low-level CRUD entry point (see §7 intro). For the normal workflow, prefer the dedicated commands:
+
+- `organize schedule` — set `due_at` / `defer_until` / `review_at`
+- `organize link` / `organize unlink` — set or clear `project`
+- `organize move` — change `kind`
+- `engage done` / `engage cancel` / `item archive` / `item restore` — change `status`
+
+Scheduling, linking, and kind changes are accepted here as well so that scripts and agents can set several fields in one call; humans working through the five-phase workflow should reach for the workflow commands instead.
 
 **Examples:**
 
@@ -746,6 +775,7 @@ htd item update ID FIELD=VALUE [FIELD=VALUE]...
 $ htd item update 20260417-write_the_man_page kind=next_action
 $ htd item update 20260417-write_the_man_page tags='[cli,docs,v1]'
 $ htd item update 20260417-write_the_man_page refs='[https://github.com/foo/bar/pull/42]'
+$ htd item update 20260417-write_the_man_page due_at=2026-05-01 body="Draft outline first."
 ```
 
 ### 7.4 `htd item archive`
