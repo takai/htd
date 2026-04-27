@@ -1,7 +1,7 @@
 ---
 name: htd-workflow
-description: Use when the user wants help managing tasks with htd — any mention of htd, inbox, next actions, projects, waiting-for, someday, tickler, capture, clarify, organize, reflect, or engage. Teaches the five-phase workflow, the htd CLI surface, and how to pick the right command for the user's situation.
-version: 0.1.0
+description: Use when the user wants help managing tasks with htd, or storing durable AI context — any mention of htd, inbox, next actions, projects, waiting-for, someday, tickler, capture, clarify, organize, reflect, engage, reference, or "remember this fact / project context / preference". Teaches the five-phase workflow, the reference (tool-scoped memory) surface, and how to pick the right CLI command.
+version: 0.2.0
 ---
 
 # htd workflow
@@ -33,6 +33,21 @@ An Item is any actionable or incomplete work. Every item has a `kind`:
 
 And a `status`: `active` (live), or one of the terminal statuses `done`, `canceled`, `discarded`, `archived`. Terminal items live in `archive/items/`.
 
+## References
+
+A Reference is **non-actionable, durable** information stored for future retrieval — typically by AI assistants recovering context at session start. References are fully separate from items: they cannot be promoted to items or linked via `project`. The data type fits things like:
+
+- User profile (`type:user`) — role, preferences, knowledge.
+- Feedback patterns (`type:feedback`) — corrections and validations the user has given about how to work.
+- Project context (`type:project`) — non-derivable background on ongoing work.
+- External pointers (`type:reference`) — dashboards, trackers, source-of-truth links.
+
+Storage layout is `reference/<tool>/<id>.md` — `<tool>` namespaces references per AI assistant so multi-assistant repos don't collide. The `--tool` flag selects the namespace and defaults to `claude`.
+
+Each tool directory carries an auto-generated `INDEX.md` that lists every active reference grouped by `type:*` tag (`## user`, `## feedback`, `## project`, `## reference`, trailing `## other` for anything else). The index is rewritten on every mutation; AI sessions can load it cheaply at startup. Do not edit `INDEX.md` by hand — run `htd reference reindex` to repair if it ever drifts (e.g., merge conflict).
+
+The body convention is **fact line first** (used as the INDEX description, truncated to 80 runes) optionally followed by a `## How to apply` section. The convention isn't enforced; just follow it.
+
 ## Invariants you must respect
 
 1. **Inbox items must be clarified before being ended.** Do not send an inbox item to `done`/`canceled` directly — run it through `htd clarify` first.
@@ -42,7 +57,9 @@ And a `status`: `active` (live), or one of the terminal statuses `done`, `cancel
 5. **Terminal items are nearly immutable.** Only correct them via `htd item update` for fixing genuine errors.
 6. **A project should have at least one next action.** If none, the project is stalled — surface it for review.
 7. **Never name the underlying methodology.** Refer only to the five-phase workflow in all user-facing output, commits, and docs.
-8. **All written artifacts are English.** Item titles, bodies, commits, comments — English. The user may converse in Japanese but items stay English.
+8. **All written artifacts are English.** Item titles, bodies, commits, comments, references — English. The user may converse in Japanese but artifacts stay English.
+9. **References are not items.** Don't capture project context as an inbox item; use `htd reference add`. Don't try to mark a reference `done`; archive it via `htd reference archive` when stale.
+10. **Never edit `INDEX.md` by hand.** It is regenerated on every reference mutation. If it drifts, run `htd reference reindex`.
 
 ## CLI cheat sheet
 
@@ -85,6 +102,15 @@ All commands accept `--json` for machine-readable output and `--path` to target 
 - `htd item archive ID`
 - `htd item restore ID` — undo an accidental `engage done`/`cancel`/`discard`/`archive`; brings a terminal item back to `active` and moves it to `items/<kind>/`.
 
+**Reference (tool-scoped durable notes)** — see "References" above for the data type. All reference verbs accept `--tool TOOL` and default to `claude`.
+- `htd reference add --title TEXT [--body TEXT] [--tag TAG]... [--tool TOOL]` — tag with `type:user|feedback|project|reference` to drive INDEX.md grouping; other tags fall into `## other`.
+- `htd reference get ID` — falls back to the archive automatically. Archived hits are marked `(archived)` in text mode and `archived: true` in JSON.
+- `htd reference list [--tool TOOL] [--tag TAG] [--archived]` — default lists the active set; `--archived` flips to the archive view (mutually exclusive).
+- `htd reference update ID FIELD=VALUE...` — supported fields: `title`, `body`, `tags`. Protected: `id`, `created_at`, `tool`.
+- `htd reference archive ID` — moves the file to `archive/reference/<tool>/`. Refuses already-archived input.
+- `htd reference restore ID` — symmetric inverse of `archive`. Refuses active input.
+- `htd reference reindex [--tool TOOL]` — repair verb: rewrites `reference/<tool>/INDEX.md` from disk. Idempotent. Reach for this only when the index has drifted (manual edit, merge conflict).
+
 ## Choosing a command
 
 | User says / situation | Suggest |
@@ -100,6 +126,10 @@ All commands accept `--json` for machine-readable output and `--path` to target 
 | Tickler for date X fires | `/htd:daily-review` (pulls fired ticklers into the inbox, then clarify decides) |
 | Completing a task | `htd engage done ID` (direct call is fine) |
 | "I marked the wrong item done", undo an accidental terminal transition | `htd item restore ID` |
+| "remember that I prefer X", "save this as a fact", "for future sessions you should know Y" | `/htd:reference` or `htd reference add --title "..." --tag type:user --body "..."` |
+| "what do you know about my project", "load my context", session-start orientation | Read `reference/<tool>/INDEX.md` directly, then `htd reference get <id>` for entries you need |
+| "this fact is stale" / "we don't do X anymore" | `htd reference archive ID` (use `restore` if you regret it) |
+| "the index looks wrong" / merge conflict in `INDEX.md` | `htd reference reindex` |
 
 ## Interaction principles
 
