@@ -9,12 +9,25 @@ import (
 	"github.com/takai/htd/internal/model"
 )
 
+// EntityKind discriminates what kind of object a NotFoundError refers to.
+type EntityKind string
+
+const (
+	EntityItem      EntityKind = "item"
+	EntityReference EntityKind = "reference"
+)
+
 type NotFoundError struct {
-	ID string
+	Kind EntityKind
+	ID   string
 }
 
 func (e *NotFoundError) Error() string {
-	return fmt.Sprintf("item %q not found", e.ID)
+	kind := e.Kind
+	if kind == "" {
+		kind = EntityItem
+	}
+	return fmt.Sprintf("%s %q not found", kind, e.ID)
 }
 
 func IsNotFound(err error) bool {
@@ -47,5 +60,5 @@ func FindItem(cfg *config.Config, id string) (string, error) {
 		return p, nil
 	}
 
-	return "", &NotFoundError{ID: id}
+	return "", &NotFoundError{Kind: EntityItem, ID: id}
 }

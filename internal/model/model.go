@@ -53,3 +53,11 @@ type Item struct {
 	Tags       []string  `yaml:"tags,omitempty"`
 	Refs       []string  `yaml:"refs,omitempty"`
 }
+
+type Reference struct {
+	ID        string    `yaml:"id"`
+	Title     string    `yaml:"title"`
+	CreatedAt time.Time `yaml:"created_at"`
+	UpdatedAt time.Time `yaml:"updated_at"`
+	Tags      []string  `yaml:"tags,omitempty"`
+}
