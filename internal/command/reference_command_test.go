@@ -303,6 +303,260 @@ func TestReferenceUpdateVerbose(t *testing.T) {
 	}
 }
 
+// ---------- reference archive ----------
+
+func TestReferenceArchiveMovesFileAndUpdatesIndex(t *testing.T) {
+	dir := setupDir(t)
+	now := time.Now()
+	writeReference(t, dir, "claude",
+		&model.Reference{ID: "r1", Title: "Doomed", CreatedAt: now, UpdatedAt: now, Tags: []string{"type:user"}},
+		"fact line",
+	)
+	cfg := config.New(dir)
+	if err := store.WriteIndex(cfg, "claude"); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, _, err := runCmd(t, dir, "reference", "archive", "r1"); err != nil {
+		t.Fatalf("reference archive: %v", err)
+	}
+
+	// File moved.
+	activePath := store.PathForReferenceActive(cfg, "claude", "r1")
+	if _, err := os.Stat(activePath); !os.IsNotExist(err) {
+		t.Errorf("active file still exists after archive: err=%v", err)
+	}
+	archivePath := store.PathForReferenceArchive(cfg, "claude", "r1")
+	if _, err := os.Stat(archivePath); err != nil {
+		t.Errorf("archive file missing: %v", err)
+	}
+
+	// INDEX.md no longer lists the entry; falls back to the empty stub.
+	idx := filepath.Join(cfg.ReferenceToolDir("claude"), "INDEX.md")
+	data, err := os.ReadFile(idx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "Doomed") {
+		t.Errorf("expected Doomed removed from INDEX.md:\n%s", data)
+	}
+	if !strings.Contains(string(data), "_No entries._") {
+		t.Errorf("expected empty stub in INDEX.md:\n%s", data)
+	}
+}
+
+func TestReferenceArchiveRefusesAlreadyArchived(t *testing.T) {
+	dir := setupDir(t)
+	cfg := config.New(dir)
+	now := time.Now()
+	ref := &model.Reference{ID: "r1", Title: "T", CreatedAt: now, UpdatedAt: now}
+	if err := store.WriteRef(store.PathForReferenceArchive(cfg, "claude", ref.ID), ref, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := runCmd(t, dir, "reference", "archive", "r1"); err == nil {
+		t.Fatal("expected error when archiving already-archived reference")
+	}
+}
+
+func TestReferenceArchiveNotFound(t *testing.T) {
+	dir := setupDir(t)
+	_, _, err := runCmd(t, dir, "reference", "archive", "ghost")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !store.IsNotFound(err) {
+		t.Errorf("expected NotFoundError, got %T %v", err, err)
+	}
+}
+
+func TestReferenceArchiveVerbose(t *testing.T) {
+	dir := setupDir(t)
+	now := time.Now()
+	writeReference(t, dir, "claude", &model.Reference{ID: "r1", Title: "T", CreatedAt: now, UpdatedAt: now}, "")
+	out, _, err := runCmd(t, dir, "--verbose", "reference", "archive", "r1")
+	if err != nil {
+		t.Fatalf("archive --verbose: %v", err)
+	}
+	if !strings.Contains(out, "updated r1: archived=true") {
+		t.Errorf("expected archived=true line, got:\n%s", out)
+	}
+}
+
+// ---------- reference restore ----------
+
+func TestReferenceRestoreMovesFileAndUpdatesIndex(t *testing.T) {
+	dir := setupDir(t)
+	cfg := config.New(dir)
+	now := time.Now()
+	ref := &model.Reference{ID: "r1", Title: "Restored", CreatedAt: now, UpdatedAt: now, Tags: []string{"type:user"}}
+	if err := store.WriteRef(store.PathForReferenceArchive(cfg, "claude", ref.ID), ref, "fact"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.WriteIndex(cfg, "claude"); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, _, err := runCmd(t, dir, "reference", "restore", "r1"); err != nil {
+		t.Fatalf("reference restore: %v", err)
+	}
+
+	activePath := store.PathForReferenceActive(cfg, "claude", "r1")
+	if _, err := os.Stat(activePath); err != nil {
+		t.Errorf("active file missing after restore: %v", err)
+	}
+	archivePath := store.PathForReferenceArchive(cfg, "claude", "r1")
+	if _, err := os.Stat(archivePath); !os.IsNotExist(err) {
+		t.Errorf("archive file still exists after restore: err=%v", err)
+	}
+	idx := filepath.Join(cfg.ReferenceToolDir("claude"), "INDEX.md")
+	data, err := os.ReadFile(idx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "Restored") {
+		t.Errorf("expected Restored back in INDEX.md:\n%s", data)
+	}
+}
+
+func TestReferenceRestoreRefusesActive(t *testing.T) {
+	dir := setupDir(t)
+	now := time.Now()
+	writeReference(t, dir, "claude", &model.Reference{ID: "r1", Title: "T", CreatedAt: now, UpdatedAt: now}, "")
+	if _, _, err := runCmd(t, dir, "reference", "restore", "r1"); err == nil {
+		t.Fatal("expected error when restoring active reference")
+	}
+}
+
+func TestReferenceRestoreVerbose(t *testing.T) {
+	dir := setupDir(t)
+	cfg := config.New(dir)
+	now := time.Now()
+	ref := &model.Reference{ID: "r1", Title: "T", CreatedAt: now, UpdatedAt: now}
+	if err := store.WriteRef(store.PathForReferenceArchive(cfg, "claude", ref.ID), ref, ""); err != nil {
+		t.Fatal(err)
+	}
+	out, _, err := runCmd(t, dir, "--verbose", "reference", "restore", "r1")
+	if err != nil {
+		t.Fatalf("restore --verbose: %v", err)
+	}
+	if !strings.Contains(out, "updated r1: archived=false") {
+		t.Errorf("expected archived=false line, got:\n%s", out)
+	}
+}
+
+// ---------- reference list --archived ----------
+
+func TestReferenceListExcludesArchivedByDefault(t *testing.T) {
+	dir := setupDir(t)
+	cfg := config.New(dir)
+	now := time.Now()
+	writeReference(t, dir, "claude", &model.Reference{ID: "active1", Title: "A", CreatedAt: now, UpdatedAt: now}, "")
+	if err := store.WriteRef(store.PathForReferenceArchive(cfg, "claude", "arch1"),
+		&model.Reference{ID: "arch1", Title: "Arch", CreatedAt: now, UpdatedAt: now}, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	out, _, err := runCmd(t, dir, "reference", "list")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "active1") {
+		t.Errorf("expected active1 in default listing:\n%s", out)
+	}
+	if strings.Contains(out, "arch1") {
+		t.Errorf("archived entry leaked into default listing:\n%s", out)
+	}
+}
+
+func TestReferenceListArchivedShowsOnlyArchived(t *testing.T) {
+	dir := setupDir(t)
+	cfg := config.New(dir)
+	now := time.Now()
+	writeReference(t, dir, "claude", &model.Reference{ID: "active1", Title: "A", CreatedAt: now, UpdatedAt: now}, "")
+	if err := store.WriteRef(store.PathForReferenceArchive(cfg, "claude", "arch1"),
+		&model.Reference{ID: "arch1", Title: "Arch", CreatedAt: now, UpdatedAt: now}, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	out, _, err := runCmd(t, dir, "reference", "list", "--archived")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "arch1") {
+		t.Errorf("expected arch1 in --archived listing:\n%s", out)
+	}
+	if strings.Contains(out, "active1") {
+		t.Errorf("active entry leaked into --archived listing:\n%s", out)
+	}
+	if !strings.Contains(out, "(archived)") {
+		t.Errorf("expected (archived) marker in row:\n%s", out)
+	}
+}
+
+func TestReferenceListArchivedJSON(t *testing.T) {
+	dir := setupDir(t)
+	cfg := config.New(dir)
+	now := time.Now()
+	if err := store.WriteRef(store.PathForReferenceArchive(cfg, "claude", "arch1"),
+		&model.Reference{ID: "arch1", Title: "Arch", CreatedAt: now, UpdatedAt: now}, ""); err != nil {
+		t.Fatal(err)
+	}
+	out, _, err := runCmd(t, dir, "--json", "reference", "list", "--archived")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []map[string]any
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("json: %v\n%s", err, out)
+	}
+	if len(got) != 1 {
+		t.Fatalf("len: want 1, got %d", len(got))
+	}
+	if got[0]["archived"] != true {
+		t.Errorf("archived: want true, got %v", got[0]["archived"])
+	}
+}
+
+// ---------- reference get archive marker ----------
+
+func TestReferenceGetArchivedMarker(t *testing.T) {
+	dir := setupDir(t)
+	cfg := config.New(dir)
+	now := time.Now()
+	if err := store.WriteRef(store.PathForReferenceArchive(cfg, "claude", "r1"),
+		&model.Reference{ID: "r1", Title: "Old", CreatedAt: now, UpdatedAt: now}, "body"); err != nil {
+		t.Fatal(err)
+	}
+	out, _, err := runCmd(t, dir, "reference", "get", "r1")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if !strings.HasPrefix(out, "(archived)\n") {
+		t.Errorf("expected (archived) prefix line, got:\n%s", out)
+	}
+}
+
+func TestReferenceGetArchivedJSON(t *testing.T) {
+	dir := setupDir(t)
+	cfg := config.New(dir)
+	now := time.Now()
+	if err := store.WriteRef(store.PathForReferenceArchive(cfg, "claude", "r1"),
+		&model.Reference{ID: "r1", Title: "Old", CreatedAt: now, UpdatedAt: now}, "body"); err != nil {
+		t.Fatal(err)
+	}
+	out, _, err := runCmd(t, dir, "--json", "reference", "get", "r1")
+	if err != nil {
+		t.Fatalf("get --json: %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("json: %v\n%s", err, out)
+	}
+	if got["archived"] != true {
+		t.Errorf("archived: want true, got %v", got["archived"])
+	}
+}
+
 // ---------- reference reindex ----------
 
 func TestReferenceReindex(t *testing.T) {

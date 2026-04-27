@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/takai/htd/internal/config"
 	"github.com/takai/htd/internal/id"
 	"github.com/takai/htd/internal/model"
 	"github.com/takai/htd/internal/output"
@@ -29,6 +30,8 @@ func newReferenceCommand(c *container) *cobra.Command {
 		newReferenceGetCommand(c),
 		newReferenceListCommand(c),
 		newReferenceUpdateCommand(c),
+		newReferenceArchiveCommand(c),
+		newReferenceRestoreCommand(c),
 		newReferenceReindexCommand(c),
 	)
 	return cmd
@@ -110,14 +113,15 @@ func newReferenceGetCommand(c *container) *cobra.Command {
 
 func newReferenceListCommand(c *container) *cobra.Command {
 	var (
-		tool string
-		tag  string
+		tool     string
+		tag      string
+		archived bool
 	)
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List active references for a tool",
+		Short: "List references for a tool",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			refs, err := store.ListReferences(c.cfg, tool, false)
+			refs, err := listReferencesForView(c.cfg, tool, archived)
 			if err != nil {
 				return err
 			}
@@ -138,7 +142,28 @@ func newReferenceListCommand(c *container) *cobra.Command {
 	}
 	addToolFlag(cmd, &tool)
 	cmd.Flags().StringVar(&tag, "tag", "", "Filter by tag")
+	cmd.Flags().BoolVar(&archived, "archived", false, "List archived references instead of active ones")
 	return cmd
+}
+
+// listReferencesForView returns active references when archived=false, or
+// archived ones when archived=true. The active list does not bleed into the
+// archived view and vice versa, matching the docs/cli.md §8.3 contract.
+func listReferencesForView(cfg *config.Config, tool string, archived bool) ([]store.ReferenceWithBody, error) {
+	if !archived {
+		return store.ListReferences(cfg, tool, false)
+	}
+	all, err := store.ListReferences(cfg, tool, true)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]store.ReferenceWithBody, 0, len(all))
+	for _, r := range all {
+		if r.Archived {
+			out = append(out, r)
+		}
+	}
+	return out, nil
 }
 
 const referenceUpdateLong = `Update fields on a reference.
@@ -206,6 +231,78 @@ func newReferenceUpdateCommand(c *container) *cobra.Command {
 				Tool:      res.Tool,
 				Archived:  res.Archived,
 				Changes:   changes,
+			}})
+			return nil
+		},
+	}
+}
+
+func newReferenceArchiveCommand(c *container) *cobra.Command {
+	return &cobra.Command{
+		Use:   "archive ID",
+		Short: "Archive a reference (move to archive/reference/<tool>/)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			refID := args[0]
+			res, err := store.FindReference(c.cfg, refID)
+			if err != nil {
+				return err
+			}
+			if res.Archived {
+				return fmt.Errorf("reference %q is already archived", refID)
+			}
+			ref, body, err := store.ReadRef(res.Path)
+			if err != nil {
+				return err
+			}
+			ref.UpdatedAt = time.Now()
+			if err := store.ArchiveReference(c.cfg, res.Tool, ref, body); err != nil {
+				return err
+			}
+			if err := store.WriteIndex(c.cfg, res.Tool); err != nil {
+				return err
+			}
+			c.printer.PrintReferenceUpdates([]output.ReferenceUpdate{{
+				Reference: ref,
+				Tool:      res.Tool,
+				Archived:  true,
+				Changes:   []output.Change{{Key: "archived", Value: "true"}},
+			}})
+			return nil
+		},
+	}
+}
+
+func newReferenceRestoreCommand(c *container) *cobra.Command {
+	return &cobra.Command{
+		Use:   "restore ID",
+		Short: "Restore an archived reference to active",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			refID := args[0]
+			res, err := store.FindReference(c.cfg, refID)
+			if err != nil {
+				return err
+			}
+			if !res.Archived {
+				return fmt.Errorf("reference %q is not archived", refID)
+			}
+			ref, body, err := store.ReadRef(res.Path)
+			if err != nil {
+				return err
+			}
+			ref.UpdatedAt = time.Now()
+			if err := store.RestoreReference(c.cfg, res.Tool, ref, body); err != nil {
+				return err
+			}
+			if err := store.WriteIndex(c.cfg, res.Tool); err != nil {
+				return err
+			}
+			c.printer.PrintReferenceUpdates([]output.ReferenceUpdate{{
+				Reference: ref,
+				Tool:      res.Tool,
+				Archived:  false,
+				Changes:   []output.Change{{Key: "archived", Value: "false"}},
 			}})
 			return nil
 		},
