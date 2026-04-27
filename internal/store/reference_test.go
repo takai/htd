@@ -303,6 +303,54 @@ func TestListReferenceToolsDiscoversSubdirs(t *testing.T) {
 	}
 }
 
+func TestArchiveAndRestoreReference(t *testing.T) {
+	cfg := newTestCfg(t)
+	if err := store.EnsureDirs(cfg); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 4, 17, 9, 0, 0, 0, time.UTC)
+	ref := makeRef("a1", "T", now)
+	active := store.PathForReferenceActive(cfg, "claude", ref.ID)
+	if err := store.WriteRef(active, ref, "body"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.ArchiveReference(cfg, "claude", ref, "body"); err != nil {
+		t.Fatalf("ArchiveReference: %v", err)
+	}
+	if _, err := os.Stat(active); !os.IsNotExist(err) {
+		t.Error("active path still exists after archive")
+	}
+	archived := store.PathForReferenceArchive(cfg, "claude", ref.ID)
+	if _, err := os.Stat(archived); err != nil {
+		t.Errorf("archive path missing after archive: %v", err)
+	}
+	got, err := store.FindReference(cfg, ref.ID)
+	if err != nil {
+		t.Fatalf("FindReference after archive: %v", err)
+	}
+	if !got.Archived {
+		t.Error("expected Archived=true after archive")
+	}
+
+	if err := store.RestoreReference(cfg, "claude", ref, "body"); err != nil {
+		t.Fatalf("RestoreReference: %v", err)
+	}
+	if _, err := os.Stat(archived); !os.IsNotExist(err) {
+		t.Error("archive path still exists after restore")
+	}
+	if _, err := os.Stat(active); err != nil {
+		t.Errorf("active path missing after restore: %v", err)
+	}
+	got, err = store.FindReference(cfg, ref.ID)
+	if err != nil {
+		t.Fatalf("FindReference after restore: %v", err)
+	}
+	if got.Archived {
+		t.Error("expected Archived=false after restore")
+	}
+}
+
 func TestMoveRef(t *testing.T) {
 	cfg := newTestCfg(t)
 	if err := store.EnsureDirs(cfg); err != nil {
