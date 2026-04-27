@@ -342,6 +342,130 @@ type waitingItemJSON struct {
 	AgeDays int `json:"age_days"`
 }
 
+// referenceJSON is a flat JSON representation of a Reference including body.
+// `archived: true` is emitted only when the hit comes from the archive; the
+// field is omitted entirely for active hits to mirror the Item omitempty
+// pattern.
+type referenceJSON struct {
+	ID        string   `json:"id"`
+	Title     string   `json:"title"`
+	Tool      string   `json:"tool"`
+	CreatedAt string   `json:"created_at"`
+	UpdatedAt string   `json:"updated_at"`
+	Tags      []string `json:"tags,omitempty"`
+	Body      string   `json:"body,omitempty"`
+	Archived  bool     `json:"archived,omitempty"`
+}
+
+func toReferenceJSON(ref *model.Reference, body, tool string, archived bool) referenceJSON {
+	return referenceJSON{
+		ID:        ref.ID,
+		Title:     ref.Title,
+		Tool:      tool,
+		CreatedAt: ref.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt: ref.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		Tags:      ref.Tags,
+		Body:      body,
+		Archived:  archived,
+	}
+}
+
+// PrintReference renders a single reference (front matter + body). When
+// archived is true, an `(archived)` marker is shown above the metadata block
+// in text mode and `archived: true` is set in JSON mode.
+func (p *Printer) PrintReference(ref *model.Reference, body, tool string, archived bool) {
+	if p.json {
+		data, _ := json.Marshal(toReferenceJSON(ref, body, tool, archived))
+		fmt.Fprintln(p.out, string(data))
+		return
+	}
+	if archived {
+		fmt.Fprintln(p.out, "(archived)")
+	}
+	fmt.Fprintf(p.out, "id:         %s\n", ref.ID)
+	fmt.Fprintf(p.out, "title:      %s\n", ref.Title)
+	fmt.Fprintf(p.out, "tool:       %s\n", tool)
+	fmt.Fprintf(p.out, "created_at: %s\n", ref.CreatedAt.Format("2006-01-02T15:04:05Z07:00"))
+	fmt.Fprintf(p.out, "updated_at: %s\n", ref.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"))
+	if len(ref.Tags) > 0 {
+		fmt.Fprintf(p.out, "tags:       %v\n", ref.Tags)
+	}
+	if body != "" {
+		fmt.Fprintf(p.out, "\n%s\n", body)
+	}
+}
+
+// ReferenceListEntry is a flat record fed to PrintReferences.
+type ReferenceListEntry struct {
+	Reference *model.Reference
+	Tool      string
+	Archived  bool
+}
+
+// PrintReferences renders a list of references. Text mode emits a tab-aligned
+// table (ID, TOOL, UPDATED_AT, TITLE); archived rows carry an `(archived)`
+// suffix on the title column. JSON mode emits an array of full reference
+// objects with `archived: true` on archived hits.
+func (p *Printer) PrintReferences(entries []ReferenceListEntry) {
+	if p.json {
+		arr := make([]referenceJSON, len(entries))
+		for i, e := range entries {
+			arr[i] = toReferenceJSON(e.Reference, "", e.Tool, e.Archived)
+		}
+		data, _ := json.Marshal(arr)
+		fmt.Fprintln(p.out, string(data))
+		return
+	}
+	tw := tabwriter.NewWriter(p.out, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "ID\tTOOL\tUPDATED_AT\tTITLE")
+	for _, e := range entries {
+		title := truncateRunes(e.Reference.Title, 40)
+		if e.Archived {
+			title = "(archived) " + title
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n",
+			e.Reference.ID,
+			e.Tool,
+			e.Reference.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			title,
+		)
+	}
+	_ = tw.Flush()
+}
+
+// ReferenceUpdate bundles a reference and the fields changed on it, for
+// PrintReferenceUpdates. Mirrors Update.
+type ReferenceUpdate struct {
+	Reference *model.Reference
+	Tool      string
+	Archived  bool
+	Changes   []Change
+}
+
+// PrintReferenceUpdates emits per-mutation confirmations when verbose mode is
+// on; a no-op otherwise. Text and JSON shapes mirror PrintUpdates.
+func (p *Printer) PrintReferenceUpdates(updates []ReferenceUpdate) {
+	if !p.verbose {
+		return
+	}
+	if p.json {
+		arr := make([]referenceJSON, len(updates))
+		for i, u := range updates {
+			arr[i] = toReferenceJSON(u.Reference, "", u.Tool, u.Archived)
+		}
+		data, _ := json.Marshal(arr)
+		fmt.Fprintln(p.out, string(data))
+		return
+	}
+	for _, u := range updates {
+		fmt.Fprint(p.out, "updated ", u.Reference.ID, ":")
+		for _, c := range u.Changes {
+			fmt.Fprintf(p.out, " %s=%s", c.Key, c.Value)
+		}
+		fmt.Fprintln(p.out)
+	}
+}
+
 // PrintWaitingItems prints items with an age_days field added in JSON output.
 // Text output is identical to PrintItems. ageDays must be the same length as items.
 func (p *Printer) PrintWaitingItems(items []*model.Item, ageDays []int) {
