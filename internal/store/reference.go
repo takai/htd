@@ -61,6 +61,24 @@ func MoveRef(src, dst string, ref *model.Reference, body string) error {
 	return os.Remove(src)
 }
 
+// ArchiveReference moves an active reference to archive/reference/<tool>/.
+// References have no `status` field; archival is location-only. The caller is
+// responsible for rewriting the active INDEX.md afterwards.
+func ArchiveReference(cfg *config.Config, tool string, ref *model.Reference, body string) error {
+	src := PathForReferenceActive(cfg, tool, ref.ID)
+	dst := PathForReferenceArchive(cfg, tool, ref.ID)
+	return MoveRef(src, dst, ref, body)
+}
+
+// RestoreReference moves an archived reference back to reference/<tool>/.
+// Symmetric inverse of ArchiveReference. The caller is responsible for
+// rewriting the active INDEX.md afterwards.
+func RestoreReference(cfg *config.Config, tool string, ref *model.Reference, body string) error {
+	src := PathForReferenceArchive(cfg, tool, ref.ID)
+	dst := PathForReferenceActive(cfg, tool, ref.ID)
+	return MoveRef(src, dst, ref, body)
+}
+
 // PathForReferenceActive returns the canonical active path for a reference
 // owned by tool.
 func PathForReferenceActive(cfg *config.Config, tool, id string) string {
