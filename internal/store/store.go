@@ -154,6 +154,19 @@ func hasTag(item *model.Item, tag string) bool {
 // parse splits YAML front matter from body.
 // Front matter is delimited by lines that are exactly "---".
 func parse(data []byte) (*model.Item, string, error) {
+	yamlBytes, body := splitFrontmatter(data)
+	var item model.Item
+	if err := yaml.Unmarshal(yamlBytes, &item); err != nil {
+		return nil, "", err
+	}
+	return &item, body, nil
+}
+
+// splitFrontmatter divides a Markdown file with YAML front matter into the
+// YAML payload and the body. Front matter is delimited by lines that are
+// exactly "---". The leading newline that follows the closing "---" is
+// trimmed from the body.
+func splitFrontmatter(data []byte) ([]byte, string) {
 	scanner := bufio.NewScanner(strings.NewReader(string(data)))
 
 	var yamlLines []string
@@ -178,20 +191,19 @@ func parse(data []byte) (*model.Item, string, error) {
 		}
 	}
 
-	var item model.Item
-	if err := yaml.Unmarshal([]byte(strings.Join(yamlLines, "\n")), &item); err != nil {
-		return nil, "", err
-	}
-
 	body := strings.Join(bodyLines, "\n")
-	// Trim leading newline that follows the closing ---
 	body = strings.TrimPrefix(body, "\n")
-
-	return &item, body, nil
+	return []byte(strings.Join(yamlLines, "\n")), body
 }
 
 func marshal(item *model.Item, body string) ([]byte, error) {
-	yamlData, err := yaml.Marshal(item)
+	return marshalFrontmatter(item, body)
+}
+
+// marshalFrontmatter renders any YAML-marshalable struct as a Markdown file
+// with front matter and body. Used by both Item and Reference writers.
+func marshalFrontmatter(v any, body string) ([]byte, error) {
+	yamlData, err := yaml.Marshal(v)
 	if err != nil {
 		return nil, err
 	}

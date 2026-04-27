@@ -30,6 +30,19 @@ func (c *Config) ArchiveReferenceDir() string {
 	return filepath.Join(c.Root, "archive", "reference")
 }
 
+// ReferenceToolDir returns the per-tool active reference directory, e.g.
+// reference/claude/. Tool subdirectories are created lazily on first use;
+// see store.EnsureReferenceToolDir.
+func (c *Config) ReferenceToolDir(tool string) string {
+	return filepath.Join(c.ReferenceDir(), tool)
+}
+
+// ArchiveReferenceToolDir returns the per-tool archive reference directory,
+// e.g. archive/reference/claude/.
+func (c *Config) ArchiveReferenceToolDir(tool string) string {
+	return filepath.Join(c.ArchiveReferenceDir(), tool)
+}
+
 func (c *Config) AllDirs() []string {
 	dirs := make([]string, 0, 9)
 	for _, k := range model.ValidKinds() {

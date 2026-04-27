@@ -24,6 +24,7 @@ Command groups map to the five workflow phases plus a low-level `item` group:
 | `reflect` | Reflect |
 | `engage` | Engage |
 | `item` | Low-level CRUD |
+| `reference` | Tool-scoped reference notes |
 
 ### 1.3 Global Options
 
@@ -70,8 +71,9 @@ Affected commands:
 - `htd organize move` / `organize link` / `organize unlink` / `organize schedule`
 - `htd engage done` / `engage cancel`
 - `htd item update` / `item archive` / `item restore`
+- `htd reference update`
 
-Commands that already print on success (`capture add`, `organize promote`, `reflect tickler --pull`, `init`) ignore `--verbose`; their output is unchanged.
+Commands that already print on success (`capture add`, `reference add`, `organize promote`, `reflect tickler --pull`, `init`) ignore `--verbose`; their output is unchanged.
 
 ---
 
@@ -828,9 +830,152 @@ htd item restore ID
 
 ---
 
-## 8. Init
+## 8. Reference
 
-### 8.1 `htd init`
+The `reference` command group manages tool-scoped reference notes — durable, AI-readable context stored under `reference/<tool>/` (see `docs/datamodel.md §3`). Notes are grouped per tool so multi-assistant repos do not collide; the `--tool` flag selects the namespace and defaults to `claude`.
+
+Each tool directory has an auto-generated `INDEX.md` that lists every active reference grouped by `type:*` tag (`## user`, `## feedback`, `## project`, `## reference`, with a trailing `## other` for entries that carry no canonical type tag). The index is rewritten on every mutation; see §8.5 for the exact format and the repair verb.
+
+### 8.1 `htd reference add`
+
+Add a new reference.
+
+```
+htd reference add --title TEXT [--body TEXT] [--tag TAG]... [--tool TOOL]
+```
+
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--title` | yes | Short description |
+| `--body` | no | Body content (Markdown) |
+| `--tag` | no | Tag (repeatable). Use `type:user`, `type:feedback`, `type:project`, or `type:reference` to drive `INDEX.md` grouping; other tags appear in `## other`. |
+| `--tool` | no | Tool namespace (default `claude`). Determines `reference/<tool>/`. |
+
+**Behavior:**
+
+1. Generate a new ID following the same `YYYYMMDD-<slug>` rule used by items, with collision suffixing (`_2`, `_3`, ...) checked across both items and references in every tool — IDs are globally unique per `docs/datamodel.md §4.2`.
+2. Set `created_at` and `updated_at` to the current timestamp.
+3. Create `reference/<tool>/` if missing (lazy — no separate setup step is required for a new tool).
+4. Write the file to `reference/<tool>/<id>.md`.
+5. Rewrite `reference/<tool>/INDEX.md`.
+6. Print the created ID to stdout.
+
+**Example:**
+
+```
+$ htd reference add --title "Branch + PR workflow" --tag type:feedback \
+    --body "Every change lands via a feature branch, never directly on main."
+20260427-branch_pr_workflow
+```
+
+### 8.2 `htd reference get`
+
+Retrieve a single reference by ID.
+
+```
+htd reference get ID
+```
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `ID` | yes | The reference ID |
+
+**Behavior:**
+
+1. Search across every tool directory under `reference/` and (in the future) `archive/reference/` for the given ID.
+2. Display the front matter and body.
+3. Exit with code `2` if the reference is not found.
+
+**JSON output:** A single object with the reference fields plus a `tool` field. The `archived: true` field is reserved for archive support and is omitted in v1 active hits.
+
+### 8.3 `htd reference list`
+
+List active references for a tool.
+
+```
+htd reference list [--tool TOOL] [--tag TAG]
+```
+
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--tool` | no | Tool namespace (default `claude`) |
+| `--tag` | no | Filter to references containing this exact tag |
+
+**Behavior:**
+
+1. Read all `*.md` files under `reference/<tool>/` (excluding `INDEX.md`).
+2. Apply the `--tag` filter if given.
+3. Display columns: `ID`, `TOOL`, `UPDATED_AT`, `TITLE`.
+4. Sort by `updated_at` descending, with `id` ascending as the deterministic tiebreaker.
+
+**JSON output:** Array of reference objects.
+
+### 8.4 `htd reference update`
+
+Update fields on a reference.
+
+```
+htd reference update ID FIELD=VALUE [FIELD=VALUE]...
+```
+
+**Supported fields:**
+
+| Field | Format | Notes |
+|-------|--------|-------|
+| `title` | string | Short description |
+| `body` | string | Markdown body (the content after front matter) |
+| `tags` | list | Comma-separated, optionally bracketed: `foo,bar` or `[foo,bar]`. Pass `tags=` (empty) to clear. |
+
+**Protected fields** (cannot be changed):
+
+- `id`
+- `created_at`
+- `tool` — to move a reference between tools, archive and re-add.
+
+**Behavior:**
+
+1. Find the reference by ID across every tool directory (active first, archive fallback for future archive support).
+2. Update each specified field in order.
+3. Set `updated_at` to the current timestamp.
+4. Rewrite the active `INDEX.md` for the owning tool (regrouping when `tags` changes the `type:*` tag).
+
+### 8.5 `INDEX.md` format
+
+`reference/<tool>/INDEX.md` is generated by the `reference` commands and is treated as a scoped exception to `docs/datamodel.md §9` ("no generated index files"). The exception exists so AI sessions can recover context cheaply at startup without scanning the filesystem.
+
+The format is fully deterministic — the same set of references produces a byte-for-byte identical file:
+
+- An H1 line: `# Reference index`.
+- One section per non-empty `type:*` group, in fixed order: `## user`, `## feedback`, `## project`, `## reference`. Entries whose canonical type tag is missing or unrecognized (e.g. `type:area_of_focus`) land in a trailing `## other` section.
+- Within each section, entries sort by `updated_at` descending, with `id` ascending as the tiebreaker.
+- Each entry is one bullet line: `- [title](id.md) — short description`. The "short description" is the first non-blank line of the body with leading `#` stripped, truncated to 80 runes. The em-dash and description are omitted when no usable description line exists.
+- When no references are present, the body is the empty-state stub `_No entries._` (the file is still written rather than deleted, so archive-then-empty stays diff-clean).
+
+### 8.6 `htd reference reindex`
+
+Rewrite `reference/<tool>/INDEX.md` from the current set of references. This is a repair verb only — the index is already kept in sync by every mutation; reach for `reindex` when the file diverged from disk through manual edits or merge conflicts.
+
+```
+htd reference reindex [--tool TOOL]
+```
+
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--tool` | no | Tool namespace (default `claude`) |
+
+**Behavior:**
+
+1. Scan `reference/<tool>/` for active references.
+2. Render `INDEX.md` per §8.5 and write it atomically.
+3. Idempotent: running `reindex` twice produces the same disk state.
+
+There is no `htd reference index` noun-verb — `htd reference list` already covers "show me what's there."
+
+---
+
+## 9. Init
+
+### 9.1 `htd init`
 
 Create the htd directory layout at the root and print the directory set.
 
@@ -867,9 +1012,9 @@ reference
 
 ---
 
-## 9. Completion
+## 10. Completion
 
-### 9.1 `htd completion`
+### 10.1 `htd completion`
 
 Emit a shell completion script for the given shell to stdout.
 
@@ -899,7 +1044,7 @@ htd completion zsh > "${fpath[1]}/_htd"
 
 ---
 
-## 10. Command Summary
+## 11. Command Summary
 
 | Command | Description |
 |---------|-------------|
@@ -929,4 +1074,9 @@ htd completion zsh > "${fpath[1]}/_htd"
 | `htd item update ID` | Update item fields directly |
 | `htd item archive ID` | Archive an item (last resort) |
 | `htd item restore ID` | Restore a terminal item to active status |
+| `htd reference add` | Add a reference under `reference/<tool>/` |
+| `htd reference get ID` | Get a reference by ID |
+| `htd reference list` | List active references for a tool |
+| `htd reference update ID` | Update reference fields |
+| `htd reference reindex` | Rewrite `reference/<tool>/INDEX.md` (repair) |
 | `htd completion SHELL` | Emit a shell completion script |
