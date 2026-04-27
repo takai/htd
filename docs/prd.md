@@ -137,5 +137,4 @@ In addition to the workflow-oriented command groups, a low-level `htd item` comm
 The following features are planned but not included in the initial release:
 
 - **Agent-specific commands** — Commands like `capture fetch` (automated inbox population), `clarify suggest` (AI-powered triage), and `clarify apply` (apply suggestions after user approval) may be added in future versions.
-- **Reference management commands** — CRUD operations for reference data.
 - **Tagging and filtering** — Advanced filtering by tags across commands.
