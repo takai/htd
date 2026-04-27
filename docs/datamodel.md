@@ -167,7 +167,11 @@ The format is fully deterministic — same set of references → byte-for-byte i
 
 ### 3.5 Reference Archival
 
-References can be archived by moving them from `reference/<tool>/` to `archive/reference/<tool>/`. INDEX.md is active-only — archive removes the entry. CLI verbs for archive/restore are tracked separately (see issue #35).
+References can be archived by moving them from `reference/<tool>/` to `archive/reference/<tool>/`. Archival is location-only — references have no `status` field, so the move alone communicates the archived state.
+
+INDEX.md is active-only; archiving a reference removes it from the index, restoring puts it back. The CLI surface is `htd reference archive ID` and `htd reference restore ID` (symmetric inverses); `htd reference list --archived` shows the archive contents.
+
+`htd reference get ID` falls back to the archive automatically. When the hit comes from `archive/reference/<tool>/`, the output is marked: an `(archived)` line precedes the metadata block in text mode and `archived: true` is set in `--json` output (the field is omitted entirely on active hits).
 
 ---
 

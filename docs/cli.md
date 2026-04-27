@@ -71,7 +71,7 @@ Affected commands:
 - `htd organize move` / `organize link` / `organize unlink` / `organize schedule`
 - `htd engage done` / `engage cancel`
 - `htd item update` / `item archive` / `item restore`
-- `htd reference update`
+- `htd reference update` / `reference archive` / `reference restore`
 
 Commands that already print on success (`capture add`, `reference add`, `organize promote`, `reflect tickler --pull`, `init`) ignore `--verbose`; their output is unchanged.
 
@@ -882,33 +882,34 @@ htd reference get ID
 
 **Behavior:**
 
-1. Search across every tool directory under `reference/` and (in the future) `archive/reference/` for the given ID.
-2. Display the front matter and body.
+1. Search across every tool directory under `reference/`, then `archive/reference/`, for the given ID. Active hits win when both exist.
+2. Display the front matter and body. When the hit comes from the archive, prepend an `(archived)` line above the metadata block in text mode and set `archived: true` in `--json` mode (the field is omitted entirely for active hits).
 3. Exit with code `2` if the reference is not found.
 
-**JSON output:** A single object with the reference fields plus a `tool` field. The `archived: true` field is reserved for archive support and is omitted in v1 active hits.
+**JSON output:** A single object with the reference fields plus a `tool` field. `archived: true` appears only when the reference came from the archive.
 
 ### 8.3 `htd reference list`
 
-List active references for a tool.
+List references for a tool.
 
 ```
-htd reference list [--tool TOOL] [--tag TAG]
+htd reference list [--tool TOOL] [--tag TAG] [--archived]
 ```
 
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--tool` | no | Tool namespace (default `claude`) |
 | `--tag` | no | Filter to references containing this exact tag |
+| `--archived` | no | List archived references under `archive/reference/<tool>/` instead of active ones |
 
 **Behavior:**
 
-1. Read all `*.md` files under `reference/<tool>/` (excluding `INDEX.md`).
+1. Read all `*.md` files under `reference/<tool>/` (excluding `INDEX.md`). When `--archived` is set, scan `archive/reference/<tool>/` instead — the active and archived views are mutually exclusive.
 2. Apply the `--tag` filter if given.
-3. Display columns: `ID`, `TOOL`, `UPDATED_AT`, `TITLE`.
+3. Display columns: `ID`, `TOOL`, `UPDATED_AT`, `TITLE`. Archived rows carry an `(archived)` prefix on the title column in text mode.
 4. Sort by `updated_at` descending, with `id` ascending as the deterministic tiebreaker.
 
-**JSON output:** Array of reference objects.
+**JSON output:** Array of reference objects. `archived: true` is set on every row when `--archived` is used.
 
 ### 8.4 `htd reference update`
 
@@ -934,12 +935,50 @@ htd reference update ID FIELD=VALUE [FIELD=VALUE]...
 
 **Behavior:**
 
-1. Find the reference by ID across every tool directory (active first, archive fallback for future archive support).
+1. Find the reference by ID across every tool directory (active first, archive fallback).
 2. Update each specified field in order.
 3. Set `updated_at` to the current timestamp.
-4. Rewrite the active `INDEX.md` for the owning tool (regrouping when `tags` changes the `type:*` tag).
+4. Rewrite the active `INDEX.md` for the owning tool when the reference is active (regrouping when `tags` changes the `type:*` tag). Archived references do not appear in `INDEX.md`, so the file is not rewritten when an archived reference is updated.
 
-### 8.5 `INDEX.md` format
+### 8.5 `htd reference archive`
+
+Archive a reference. Archival is location-only — references have no `status` field. The file moves from `reference/<tool>/<id>.md` to `archive/reference/<tool>/<id>.md` and the active `INDEX.md` is rewritten to drop the entry.
+
+```
+htd reference archive ID
+```
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `ID` | yes | The reference ID |
+
+**Behavior:**
+
+1. Locate the reference. Archived references are rejected; archiving is one-way.
+2. Update `updated_at` to the current timestamp.
+3. Move the file to `archive/reference/<tool>/<id>.md`.
+4. Rewrite `reference/<tool>/INDEX.md`. When the last active reference for a tool is archived, INDEX.md falls back to the empty-state stub (the file is still written rather than deleted so archive-then-empty stays diff-clean).
+
+### 8.6 `htd reference restore`
+
+Restore an archived reference to active. Symmetric inverse of `archive`.
+
+```
+htd reference restore ID
+```
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `ID` | yes | The reference ID |
+
+**Behavior:**
+
+1. Locate the reference. Active references are rejected.
+2. Update `updated_at` to the current timestamp.
+3. Move the file from `archive/reference/<tool>/<id>.md` back to `reference/<tool>/<id>.md`.
+4. Rewrite the active `INDEX.md`.
+
+### 8.7 `INDEX.md` format
 
 `reference/<tool>/INDEX.md` is generated by the `reference` commands and is treated as a scoped exception to `docs/datamodel.md §9` ("no generated index files"). The exception exists so AI sessions can recover context cheaply at startup without scanning the filesystem.
 
@@ -951,7 +990,9 @@ The format is fully deterministic — the same set of references produces a byte
 - Each entry is one bullet line: `- [title](id.md) — short description`. The "short description" is the first non-blank line of the body with leading `#` stripped, truncated to 80 runes. The em-dash and description are omitted when no usable description line exists.
 - When no references are present, the body is the empty-state stub `_No entries._` (the file is still written rather than deleted, so archive-then-empty stays diff-clean).
 
-### 8.6 `htd reference reindex`
+INDEX.md is active-only. Archived references do not appear; use `htd reference list --archived` to inspect the archive.
+
+### 8.8 `htd reference reindex`
 
 Rewrite `reference/<tool>/INDEX.md` from the current set of references. This is a repair verb only — the index is already kept in sync by every mutation; reach for `reindex` when the file diverged from disk through manual edits or merge conflicts.
 
@@ -966,7 +1007,7 @@ htd reference reindex [--tool TOOL]
 **Behavior:**
 
 1. Scan `reference/<tool>/` for active references.
-2. Render `INDEX.md` per §8.5 and write it atomically.
+2. Render `INDEX.md` per §8.7 and write it atomically.
 3. Idempotent: running `reindex` twice produces the same disk state.
 
 There is no `htd reference index` noun-verb — `htd reference list` already covers "show me what's there."
@@ -1075,8 +1116,10 @@ htd completion zsh > "${fpath[1]}/_htd"
 | `htd item archive ID` | Archive an item (last resort) |
 | `htd item restore ID` | Restore a terminal item to active status |
 | `htd reference add` | Add a reference under `reference/<tool>/` |
-| `htd reference get ID` | Get a reference by ID |
-| `htd reference list` | List active references for a tool |
+| `htd reference get ID` | Get a reference by ID (with `(archived)` marker if applicable) |
+| `htd reference list [--archived]` | List active references for a tool, or archived ones |
 | `htd reference update ID` | Update reference fields |
+| `htd reference archive ID` | Archive a reference |
+| `htd reference restore ID` | Restore an archived reference |
 | `htd reference reindex` | Rewrite `reference/<tool>/INDEX.md` (repair) |
 | `htd completion SHELL` | Emit a shell completion script |
