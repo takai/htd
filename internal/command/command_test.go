@@ -2188,6 +2188,7 @@ func TestInitCreatesDirectories(t *testing.T) {
 		filepath.Join(dir, "archive", "items"),
 		filepath.Join(dir, "archive", "reference"),
 		filepath.Join(dir, "reference"),
+		filepath.Join(dir, "journal"),
 	}
 
 	gotLines := strings.Split(strings.TrimRight(out, "\n"), "\n")
@@ -2221,8 +2222,8 @@ func TestInitJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &paths); err != nil {
 		t.Fatalf("invalid JSON: %v\noutput: %s", err, out)
 	}
-	if len(paths) != 9 {
-		t.Errorf("paths: want 9, got %d (%v)", len(paths), paths)
+	if len(paths) != 10 {
+		t.Errorf("paths: want 10, got %d (%v)", len(paths), paths)
 	}
 	if paths[0] != filepath.Join(dir, "items", "inbox") {
 		t.Errorf("paths[0]: want %q, got %q", filepath.Join(dir, "items", "inbox"), paths[0])

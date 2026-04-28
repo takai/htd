@@ -61,3 +61,13 @@ type Reference struct {
 	UpdatedAt time.Time `yaml:"updated_at"`
 	Tags      []string  `yaml:"tags,omitempty"`
 }
+
+// Journal is a time-stamped observation entry stored under journal/.
+// Frontmatter is optional — files written by `htd journal new` carry the
+// metadata block, but hand-edited entries may omit it. The filename serves
+// as the identifier; there is no `id` field.
+type Journal struct {
+	CreatedAt time.Time `yaml:"created_at,omitempty"`
+	UpdatedAt time.Time `yaml:"updated_at,omitempty"`
+	Tags      []string  `yaml:"tags,omitempty"`
+}
