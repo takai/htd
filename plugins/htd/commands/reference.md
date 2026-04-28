@@ -12,7 +12,7 @@ You are managing **References** — durable, AI-readable notes stored under `ref
 
 The user's arguments `$ARGUMENTS` are the title for a new reference. Quickly clarify with the user (in one short turn) two things you cannot infer from the title alone:
 
-1. **Type tag** — pick one of `type:user`, `type:feedback`, `type:project`, `type:reference`, or "other" (skip the type tag entirely). Suggest a reasonable default based on the title and confirm.
+1. **Type tag** — pick one of `type:user`, `type:feedback`, `type:area_of_focus`, `type:project`, `type:reference`, or "other" (skip the type tag entirely). Suggest a reasonable default based on the title and confirm.
 2. **Body** — at minimum the one-line fact (used as the INDEX.md description). Optionally a `## How to apply` section. If the user only gave you a title and you can paraphrase a clear fact line, propose it; otherwise ask.
 
 Then run:
@@ -27,7 +27,7 @@ Print the resulting ID. Do not chain into anything else.
 
 Ask the user what they want to do:
 
-- **Save a new reference** → ask for title (required), type tag (one of the four canonical, or skip), and body (fact line + optional "How to apply"). Then run `htd reference add ...` as above.
+- **Save a new reference** → ask for title (required), type tag (one of the five canonical, or skip), and body (fact line + optional "How to apply"). Then run `htd reference add ...` as above.
 - **Look up an existing one** → run `htd reference list --json` and surface IDs/titles. If the user names one, run `htd reference get <id>`.
 - **Archive a stale fact** → confirm the ID, then `htd reference archive <id>`.
 - **Restore something** → confirm the ID, then `htd reference restore <id>`.
@@ -40,9 +40,10 @@ Pick the path the user describes; don't run a menu unless they're unsure.
 |-----|-------------|
 | `type:user` | Anything about the user themselves — role, preferences, knowledge level, working style. |
 | `type:feedback` | Corrections or validations the user has given about how to work. Capture *why* alongside the rule. |
+| `type:area_of_focus` | An area of standing attention without a defined outcome — an ongoing responsibility, role, or domain. Re-tag as `type:project` once a deliverable and deadline appear. |
 | `type:project` | Non-derivable context on a project — motivations, deadlines, stakeholder asks. |
 | `type:reference` | Pointers to external sources of truth (dashboards, trackers, doc URLs). |
-| (no tag) | Falls into `## other` in INDEX.md. Use only when none of the four fit. |
+| (no tag) | Falls into `## other` in INDEX.md. Use only when none of the five fit. |
 
 ## Notes
 
