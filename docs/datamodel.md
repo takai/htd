@@ -148,16 +148,17 @@ Active references live under `reference/<tool>/` so multi-assistant repositories
 
 ### 3.3 Type Tag Convention
 
-References are categorized by an optional `type:*` tag in the `tags` list. Four canonical values drive INDEX.md grouping:
+References are categorized by an optional `type:*` tag in the `tags` list. Five canonical values drive INDEX.md grouping:
 
 | Tag | Meaning |
 |-----|---------|
 | `type:user` | Information about the user — role, preferences, knowledge |
 | `type:feedback` | Guidance the user has given about how to approach work |
+| `type:area_of_focus` | An area of standing attention without a defined outcome — ongoing responsibility, role, or domain. Promote to `type:project` when a deliverable and deadline appear. |
 | `type:project` | Project-level context not derivable from code or git |
-| `type:reference` | Pointers to external systems (dashboards, trackers, dashboards) |
+| `type:reference` | Pointers to external systems (dashboards, trackers, doc URLs) |
 
-Other `type:*` values (e.g. `type:area_of_focus`) are valid; they fall into the `## other` INDEX section. References with no `type:*` tag also land in `## other`.
+Other `type:*` values (e.g. `type:misc`) are valid; they fall into the `## other` INDEX section. References with no `type:*` tag also land in `## other`.
 
 ### 3.4 Auto-Generated INDEX.md
 

@@ -835,7 +835,7 @@ htd item restore ID
 
 The `reference` command group manages tool-scoped reference notes — durable, AI-readable context stored under `reference/<tool>/` (see `docs/datamodel.md §3`). Notes are grouped per tool so multi-assistant repos do not collide; the `--tool` flag selects the namespace and defaults to `claude`.
 
-Each tool directory has an auto-generated `INDEX.md` that lists every active reference grouped by `type:*` tag (`## user`, `## feedback`, `## project`, `## reference`, with a trailing `## other` for entries that carry no canonical type tag). The index is rewritten on every mutation; see §8.5 for the exact format and the repair verb.
+Each tool directory has an auto-generated `INDEX.md` that lists every active reference grouped by `type:*` tag (`## user`, `## feedback`, `## area_of_focus`, `## project`, `## reference`, with a trailing `## other` for entries that carry no canonical type tag). The index is rewritten on every mutation; see §8.5 for the exact format and the repair verb.
 
 ### 8.1 `htd reference add`
 
@@ -849,7 +849,7 @@ htd reference add --title TEXT [--body TEXT] [--tag TAG]... [--tool TOOL]
 |--------|----------|-------------|
 | `--title` | yes | Short description |
 | `--body` | no | Body content (Markdown) |
-| `--tag` | no | Tag (repeatable). Use `type:user`, `type:feedback`, `type:project`, or `type:reference` to drive `INDEX.md` grouping; other tags appear in `## other`. |
+| `--tag` | no | Tag (repeatable). Use `type:user`, `type:feedback`, `type:area_of_focus`, `type:project`, or `type:reference` to drive `INDEX.md` grouping; other tags appear in `## other`. |
 | `--tool` | no | Tool namespace (default `claude`). Determines `reference/<tool>/`. |
 
 **Behavior:**
@@ -986,7 +986,7 @@ htd reference restore ID
 The format is fully deterministic — the same set of references produces a byte-for-byte identical file:
 
 - An H1 line: `# Reference index`.
-- One section per non-empty `type:*` group, in fixed order: `## user`, `## feedback`, `## project`, `## reference`. Entries whose canonical type tag is missing or unrecognized (e.g. `type:area_of_focus`) land in a trailing `## other` section.
+- One section per non-empty `type:*` group, in fixed order: `## user`, `## feedback`, `## area_of_focus`, `## project`, `## reference`. Entries whose canonical type tag is missing or unrecognized (e.g. `type:misc`) land in a trailing `## other` section.
 - Within each section, entries sort by `updated_at` descending, with `id` ascending as the tiebreaker.
 - Each entry is one bullet line: `- [title](id.md) — short description`. The "short description" is the first non-blank line of the body with leading `#` stripped, truncated to 80 runes. The em-dash and description are omitted when no usable description line exists.
 - When no references are present, the body is the empty-state stub `_No entries._` (the file is still written rather than deleted, so archive-then-empty stays diff-clean).
