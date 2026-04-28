@@ -12,7 +12,7 @@ import (
 // numeric suffix (_2, _3, ...) when the base ID already exists anywhere on
 // disk: any item directory or archive, or any reference tool directory or
 // archive. Cross-checking references keeps IDs globally unique per
-// docs/datamodel.md §4.2.
+// docs/datamodel.md §5.2.
 func generateUniqueID(c *container, title string, now time.Time) string {
 	base := id.Generate(title, now)
 	candidate := base

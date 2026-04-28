@@ -1,7 +1,7 @@
 ---
 name: htd-workflow
-description: Use when the user wants help managing tasks with htd, or storing durable AI context — any mention of htd, inbox, next actions, projects, waiting-for, someday, tickler, capture, clarify, organize, reflect, engage, reference, or "remember this fact / project context / preference". Teaches the five-phase workflow, the reference (tool-scoped memory) surface, and how to pick the right CLI command.
-version: 0.2.0
+description: Use when the user wants help managing tasks with htd, storing durable AI context, or keeping a journal/retro — any mention of htd, inbox, next actions, projects, waiting-for, someday, tickler, capture, clarify, organize, reflect, engage, reference, journal, retro, daily note, "remember this fact / project context / preference", or "let's do a retro". Teaches the five-phase workflow, the reference (tool-scoped memory) surface, the journal lane, and how to pick the right CLI command.
+version: 0.3.0
 ---
 
 # htd workflow
@@ -48,6 +48,30 @@ Each tool directory carries an auto-generated `INDEX.md` that lists every active
 
 The body convention is **fact line first** (used as the INDEX description, truncated to 80 runes) optionally followed by a `## How to apply` section. The convention isn't enforced; just follow it.
 
+## Journals
+
+A Journal entry is a **time-stamped observation** that fits neither items (not actionable) nor references (not durable lookup). The lane covers:
+
+- **Daily journals** — what got done, what was learned, plans for tomorrow.
+- **Weekly retros** — wins, misses, lessons, focus for next week.
+- **Ad-hoc logs** — postmortems, decision memos, observation notes pinned to a topic rather than a date.
+
+Storage is `journal/` at the htd root, **flat and tool-agnostic** (no per-tool subdir). Journals belong to the user, not to any AI assistant — they don't need the per-tool isolation that references have.
+
+Filename forms:
+
+| Type | Filename |
+|------|----------|
+| Daily | `YYYY-MM-DD.md` (e.g. `2026-04-28.md`) |
+| Weekly | `YYYY-MM-DD-weekly.md` where the date is the **Monday** of the ISO week (e.g. `2026-04-27-weekly.md`) |
+| Ad-hoc | `<slug>.md` derived from a `--title` (e.g. `postmortem_on_outage.md`) |
+
+The filename is the identifier — there is no `id` field. YAML frontmatter (`created_at`, `updated_at`, `tags`) is optional; `htd journal new` writes it, hand-edited files may omit it.
+
+Journals are **write-once** in htd's view: there is no `update`, `archive`, or `restore` verb. Users edit entries in `$EDITOR`; Git is the audit log; deletion is direct (`rm`). Listings show every file under `journal/`, most-recent-first by filename.
+
+Journals **do not** appear in any INDEX.md and are **not** loaded at AI session start. They are consulted on demand ("what did I learn the week of 2026-04-20?", "show me the postmortem").
+
 ## Invariants you must respect
 
 1. **Inbox items must be clarified before being ended.** Do not send an inbox item to `done`/`canceled` directly — run it through `htd clarify` first.
@@ -60,6 +84,8 @@ The body convention is **fact line first** (used as the INDEX description, trunc
 8. **All written artifacts are English.** Item titles, bodies, commits, comments, references — English. The user may converse in Japanese but artifacts stay English.
 9. **References are not items.** Don't capture project context as an inbox item; use `htd reference add`. Don't try to mark a reference `done`; archive it via `htd reference archive` when stale.
 10. **Never edit `INDEX.md` by hand.** It is regenerated on every reference mutation. If it drifts, run `htd reference reindex`.
+11. **Journals are write-once.** Don't try to update a journal entry through htd — there is no verb. Edit the file directly in `$EDITOR` if you need to change it; `git diff` is the audit trail.
+12. **Pick the right bucket.** A new fact about the user → reference (`type:user`). A retro → journal weekly. A task to do → item (capture). When unsure, ask the user before placing it.
 
 ## CLI cheat sheet
 
@@ -111,6 +137,12 @@ All commands accept `--json` for machine-readable output and `--path` to target 
 - `htd reference restore ID` — symmetric inverse of `archive`. Refuses active input.
 - `htd reference reindex [--tool TOOL]` — repair verb: rewrites `reference/<tool>/INDEX.md` from disk. Idempotent. Reach for this only when the index has drifted (manual edit, merge conflict).
 
+**Journal (time-stamped observations)** — see "Journals" above. All journal entries live under `journal/` at the htd root.
+- `htd journal new [--type daily|weekly|adhoc] [--date YYYY-MM-DD] [--title TEXT] [--tag TAG]...` — creates a templated file. `daily` defaults to today; `weekly` snaps to Monday of the ISO week containing `--date`; `adhoc` requires `--title` and derives a slug. Refuses to clobber existing files.
+- `htd journal list [--since YYYY-MM-DD]` — chronological, most recent first. `--since` filters by filename-derived date for dated entries (`created_at` fallback for ad-hoc slugs).
+- `htd journal show NAME` — `NAME` is the filename without `.md` (e.g. `2026-04-28`, `2026-04-27-weekly`, `postmortem_on_outage`). Hand-edited entries with no frontmatter are still readable.
+- No `update`/`archive`/`restore` — edit in `$EDITOR`; remove with `rm` if needed.
+
 ## Choosing a command
 
 | User says / situation | Suggest |
@@ -130,6 +162,10 @@ All commands accept `--json` for machine-readable output and `--path` to target 
 | "what do you know about my project", "load my context", session-start orientation | Read `reference/<tool>/INDEX.md` directly, then `htd reference get <id>` for entries you need |
 | "this fact is stale" / "we don't do X anymore" | `htd reference archive ID` (use `restore` if you regret it) |
 | "the index looks wrong" / merge conflict in `INDEX.md` | `htd reference reindex` |
+| "let's do a daily journal", "I want to write today's notes" | `/htd:journal` or `htd journal new` |
+| "weekly retro", "let's reflect on last week" | `htd journal new --type weekly` (date snaps to Monday of the ISO week) |
+| "postmortem on the outage", "decision memo on X" | `htd journal new --type adhoc --title "..."` |
+| "what did I learn last week", "pull up the journal entries since X" | `htd journal list --since YYYY-MM-DD` then `htd journal show <name>` |
 
 ## Interaction principles
 

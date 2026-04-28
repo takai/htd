@@ -14,7 +14,7 @@ An Item is the primary data type. It represents any actionable or incomplete pie
 
 | Field | Type | Required | Mutable | Description |
 |-------|------|----------|---------|-------------|
-| `id` | string | yes | **no** | Unique identifier (see §4) |
+| `id` | string | yes | **no** | Unique identifier (see §5) |
 | `title` | string | yes | yes | Short description |
 | `kind` | string | yes | yes | Category — one of the Kind enum (see §2.2) |
 | `status` | string | yes | yes | Lifecycle state — one of the Status enum (see §2.3) |
@@ -161,7 +161,7 @@ Other `type:*` values (e.g. `type:area_of_focus`) are valid; they fall into the 
 
 ### 3.4 Auto-Generated INDEX.md
 
-Each tool directory carries an `INDEX.md` rewritten by the `htd reference` commands on every mutation. INDEX.md is treated as a scoped exception to §9 ("no generated index files") — it exists so AI sessions can recover context cheaply at startup without scanning the filesystem.
+Each tool directory carries an `INDEX.md` rewritten by the `htd reference` commands on every mutation. INDEX.md is treated as a scoped exception to §10 ("no generated index files") — it exists so AI sessions can recover context cheaply at startup without scanning the filesystem.
 
 The format is fully deterministic — same set of references → byte-for-byte identical file. See `docs/cli.md §8.5` for the exact rendering rules.
 
@@ -175,7 +175,47 @@ INDEX.md is active-only; archiving a reference removes it from the index, restor
 
 ---
 
-## 4. ID Specification
+## 4. Journal
+
+A Journal entry is a time-stamped observation that fits neither Item (not actionable) nor Reference (not durable lookup). The lane covers daily journals, weekly retros, and ad-hoc observation logs. Journals are written-once and edited in `$EDITOR`; htd never updates or archives them.
+
+### 4.1 Storage
+
+Entries live under `journal/` at the htd root, flat (no subdirectories) and tool-agnostic. Journals belong to the user, not to any AI assistant — there is no per-tool namespacing.
+
+### 4.2 Filenames
+
+| Type | Filename |
+|------|----------|
+| Daily | `YYYY-MM-DD.md` |
+| Weekly retro | `YYYY-MM-DD-weekly.md`, where the date is the Monday of the ISO week |
+| Ad-hoc | `<slug>.md`, free-form snake_case slug derived from a title |
+
+The filename serves as the identifier — there is no `id` field. Daily filenames sort lexically; the same is true for weekly entries grouped by year. Ad-hoc filenames sort alongside dated ones, which is fine because listings show the most recent first regardless of category.
+
+### 4.3 Frontmatter
+
+YAML frontmatter is **optional**. `htd journal new` writes a frontmatter block; hand-edited files may omit it.
+
+| Field | Type | Required | Mutable | Description |
+|-------|------|----------|---------|-------------|
+| `created_at` | datetime | no | **no** | Wall-clock creation time (RFC 3339) |
+| `updated_at` | datetime | no | yes | Last modification timestamp (RFC 3339) |
+| `tags` | list of strings | no | yes | Arbitrary tags |
+
+Journals do not have a `kind`, `status`, or `id` field. There is no project link.
+
+### 4.4 No INDEX.md
+
+Journal entries are read on demand and are **not** loaded at AI session start, so there is no auto-generated INDEX.md and no equivalent to the reference layer's `## type:* ` grouping. `htd journal list` is the only mechanical view.
+
+### 4.5 Lifecycle
+
+Journals are write-once. There is no `update`, `archive`, or `restore` verb — Git history is the audit log; users delete entries directly when needed. Listing always shows every file under `journal/`; `--since DATE` filters by the entry's logical date (filename-derived for dated entries, `created_at` fallback for ad-hoc).
+
+---
+
+## 5. ID Specification
 
 ### 4.1 Format
 
@@ -204,7 +244,7 @@ YYYYMMDD-<slug>
 
 ---
 
-## 5. File Format
+## 6. File Format
 
 ### 5.1 Item File
 
@@ -267,9 +307,9 @@ Examples:
 
 ---
 
-## 6. Storage Layout
+## 7. Storage Layout
 
-### 6.1 Directory Structure
+### 7.1 Directory Structure
 
 ```
 <htd-root>/
@@ -284,6 +324,10 @@ Examples:
 │   └── <tool>/
 │       ├── INDEX.md
 │       └── <id>.md
+├── journal/
+│   ├── YYYY-MM-DD.md
+│   ├── YYYY-MM-DD-weekly.md
+│   └── <slug>.md
 └── archive/
     ├── items/
     └── reference/
@@ -291,7 +335,7 @@ Examples:
             └── <id>.md
 ```
 
-### 6.2 Directory Semantics
+### 7.2 Directory Semantics
 
 | Path | Contents |
 |------|----------|
@@ -302,28 +346,30 @@ Examples:
 | `items/someday/` | Deferred items |
 | `items/tickler/` | Time-triggered reminders |
 | `reference/<tool>/` | Active reference materials, namespaced by AI assistant or tool. Subdirectories are created lazily on first `htd reference add --tool <tool>`. Each contains an auto-generated `INDEX.md` (see §3.4). |
+| `journal/` | Time-stamped journals and retros (see §4). Flat, tool-agnostic; no `INDEX.md`. |
 | `archive/items/` | Items with terminal status (flat — no kind subdirectories) |
 | `archive/reference/<tool>/` | Archived reference materials, mirroring the active layout |
 
-### 6.3 Initialization
+### 7.3 Initialization
 
 Running any `htd` command on an empty directory creates the full directory structure automatically. All directories are created, including empty ones, to ensure consistent layout. The `htd init` command makes this setup explicit and prints the resulting directory set, which is useful for scripting and for confirming the layout before capturing items.
 
-### 6.4 File Location Rules
+### 7.4 File Location Rules
 
 1. An **active item** is stored at: `items/<kind>/<id>.md`
 2. A **terminal item** (done/canceled/discarded/archived) is stored at: `archive/items/<id>.md`
 3. An **active reference** is stored at: `reference/<tool>/<id>.md`
 4. An **archived reference** is stored at: `archive/reference/<tool>/<id>.md`
 5. The **active INDEX** for a tool is stored at: `reference/<tool>/INDEX.md` (auto-generated; see §3.4)
+6. A **journal entry** is stored at: `journal/<name>.md`, where `<name>` is the date or slug per §4.2
 
-When an item's kind or status changes, the file is physically moved to the correct location. The front matter and directory location must always agree.
+When an item's kind or status changes, the file is physically moved to the correct location. The front matter and directory location must always agree. Journal files are write-once and are not moved by htd.
 
 ---
 
-## 7. Relationships
+## 8. Relationships
 
-### 7.1 Item → Project Link
+### 8.1 Item → Project Link
 
 An item can be linked to a project via the `project` field. This field contains the ID of a project-kind item.
 
@@ -333,13 +379,13 @@ An item can be linked to a project via the `project` field. This field contains 
 - A project item itself must not have a `project` field (no nesting).
 - Deleting or archiving a project does not cascade to linked items.
 
-### 7.2 Querying Linked Items
+### 8.2 Querying Linked Items
 
 To find all items linked to a project, filter all active items where `project == <project-id>`. There is no reverse-link stored on the project item itself.
 
 ---
 
-## 8. Timestamps
+## 9. Timestamps
 
 | Field | Set On | Updated On |
 |-------|--------|------------|
@@ -350,7 +396,7 @@ Timestamps use the system's local timezone in RFC 3339 format. The timezone offs
 
 ---
 
-## 9. Git Integration
+## 10. Git Integration
 
 The data model is designed for Git version control:
 

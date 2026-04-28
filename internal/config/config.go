@@ -26,6 +26,13 @@ func (c *Config) ReferenceDir() string {
 	return filepath.Join(c.Root, "reference")
 }
 
+// JournalDir returns the path to the time-stamped journal lane. Journals are
+// flat (no per-tool subdirs) and not namespaced; they capture the user's own
+// observations rather than AI session context.
+func (c *Config) JournalDir() string {
+	return filepath.Join(c.Root, "journal")
+}
+
 func (c *Config) ArchiveReferenceDir() string {
 	return filepath.Join(c.Root, "archive", "reference")
 }
@@ -44,10 +51,10 @@ func (c *Config) ArchiveReferenceToolDir(tool string) string {
 }
 
 func (c *Config) AllDirs() []string {
-	dirs := make([]string, 0, 9)
+	dirs := make([]string, 0, 10)
 	for _, k := range model.ValidKinds() {
 		dirs = append(dirs, c.DirForKind(k))
 	}
-	dirs = append(dirs, c.ArchiveItemsDir(), c.ArchiveReferenceDir(), c.ReferenceDir())
+	dirs = append(dirs, c.ArchiveItemsDir(), c.ArchiveReferenceDir(), c.ReferenceDir(), c.JournalDir())
 	return dirs
 }
