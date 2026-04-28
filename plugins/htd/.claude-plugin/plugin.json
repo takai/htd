@@ -1,12 +1,12 @@
 {
   "name": "htd",
-  "version": "0.2.0",
-  "description": "Drive the htd five-phase workflow from Claude Code: capture, clarify, organize, reflect, engage. Also manages tool-scoped reference notes for durable AI context.",
+  "version": "0.3.0",
+  "description": "Drive the htd five-phase workflow from Claude Code: capture, clarify, organize, reflect, engage. Also manages tool-scoped reference notes for durable AI context and a time-stamped journal lane for daily notes, weekly retros, and observation logs.",
   "author": {
     "name": "Naoto Takai",
     "email": "takai-naoto@ivry.jp"
   },
   "repository": "https://github.com/takai/htd",
   "license": "MIT",
-  "keywords": ["task-management", "workflow", "productivity", "cli", "ai-memory", "reference"]
+  "keywords": ["task-management", "workflow", "productivity", "cli", "ai-memory", "reference", "journal", "retro"]
 }
