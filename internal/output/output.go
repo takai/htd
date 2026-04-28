@@ -466,6 +466,84 @@ func (p *Printer) PrintReferenceUpdates(updates []ReferenceUpdate) {
 	}
 }
 
+// journalJSON is a flat JSON representation of a Journal entry.
+type journalJSON struct {
+	Name      string   `json:"name"`
+	CreatedAt string   `json:"created_at,omitempty"`
+	UpdatedAt string   `json:"updated_at,omitempty"`
+	Tags      []string `json:"tags,omitempty"`
+	Body      string   `json:"body,omitempty"`
+}
+
+func toJournalJSON(name string, j *model.Journal, body string) journalJSON {
+	out := journalJSON{Name: name, Tags: j.Tags, Body: body}
+	if !j.CreatedAt.IsZero() {
+		out.CreatedAt = j.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
+	}
+	if !j.UpdatedAt.IsZero() {
+		out.UpdatedAt = j.UpdatedAt.Format("2006-01-02T15:04:05Z07:00")
+	}
+	return out
+}
+
+// PrintJournal renders a single journal entry. Text mode prints metadata then
+// body; JSON mode emits a flat object.
+func (p *Printer) PrintJournal(name string, j *model.Journal, body string) {
+	if p.json {
+		data, _ := json.Marshal(toJournalJSON(name, j, body))
+		fmt.Fprintln(p.out, string(data))
+		return
+	}
+	fmt.Fprintf(p.out, "name:       %s\n", name)
+	if !j.CreatedAt.IsZero() {
+		fmt.Fprintf(p.out, "created_at: %s\n", j.CreatedAt.Format("2006-01-02T15:04:05Z07:00"))
+	}
+	if !j.UpdatedAt.IsZero() {
+		fmt.Fprintf(p.out, "updated_at: %s\n", j.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"))
+	}
+	if len(j.Tags) > 0 {
+		fmt.Fprintf(p.out, "tags:       %v\n", j.Tags)
+	}
+	if body != "" {
+		fmt.Fprintf(p.out, "\n%s\n", body)
+	}
+}
+
+// JournalListEntry is a flat record fed to PrintJournals.
+type JournalListEntry struct {
+	Name    string
+	Journal *model.Journal
+}
+
+// PrintJournals renders a list of journal entries. Text mode emits a
+// tab-aligned table (NAME, CREATED_AT, TAGS); JSON mode emits an array of
+// flat objects (without body).
+func (p *Printer) PrintJournals(entries []JournalListEntry) {
+	if p.json {
+		arr := make([]journalJSON, len(entries))
+		for i, e := range entries {
+			arr[i] = toJournalJSON(e.Name, e.Journal, "")
+		}
+		data, _ := json.Marshal(arr)
+		fmt.Fprintln(p.out, string(data))
+		return
+	}
+	tw := tabwriter.NewWriter(p.out, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "NAME\tCREATED_AT\tTAGS")
+	for _, e := range entries {
+		created := "-"
+		if !e.Journal.CreatedAt.IsZero() {
+			created = e.Journal.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
+		}
+		tags := "-"
+		if len(e.Journal.Tags) > 0 {
+			tags = strings.Join(e.Journal.Tags, ",")
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\n", e.Name, created, tags)
+	}
+	_ = tw.Flush()
+}
+
 // PrintWaitingItems prints items with an age_days field added in JSON output.
 // Text output is identical to PrintItems. ageDays must be the same length as items.
 func (p *Printer) PrintWaitingItems(items []*model.Item, ageDays []int) {
