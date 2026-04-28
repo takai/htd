@@ -374,7 +374,7 @@ func containsRefTag(tags []string, want string) bool {
 // generateUniqueReferenceID returns an ID derived from title at time now,
 // suffixed with _2, _3, ... when an item or any reference (active or
 // archived, in any tool) already uses the base ID. Cross-checking items keeps
-// IDs globally unique per docs/datamodel.md §4.2.
+// IDs globally unique per docs/datamodel.md §5.2.
 func generateUniqueReferenceID(c *container, title string, now time.Time) string {
 	base := id.Generate(title, now)
 	candidate := base

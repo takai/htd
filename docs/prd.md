@@ -40,12 +40,13 @@ The system structures all task management around five sequential phases:
 
 ### 2.2 Data Types
 
-The system uses exactly two data types:
+The system uses three data types:
 
 - **Item** — An actionable or incomplete piece of work (tasks, projects, waiting items, etc.)
-- **Reference** — Non-actionable information stored for future retrieval
+- **Reference** — Non-actionable information stored for future retrieval (durable AI/user-readable context).
+- **Journal** — Time-stamped observations that fit neither Items nor References — daily notes, weekly retros, ad-hoc observation logs.
 
-These are fully separate; a Reference is never promoted to an Item or vice versa.
+These are fully separate; an entry in one bucket is never promoted to another.
 
 ### 2.3 Item Categories (Kind)
 
