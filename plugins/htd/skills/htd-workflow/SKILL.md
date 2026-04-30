@@ -1,7 +1,7 @@
 ---
 name: htd-workflow
 description: Use when the user wants help managing tasks with htd, storing durable AI context, or keeping a journal/retro — any mention of htd, inbox, next actions, projects, waiting-for, someday, tickler, capture, clarify, organize, reflect, engage, reference, journal, retro, daily note, "remember this fact / project context / preference", or "let's do a retro". Teaches the five-phase workflow, the reference (tool-scoped memory) surface, the journal lane, and how to pick the right CLI command.
-version: 0.3.0
+version: 0.3.1
 ---
 
 # htd workflow
@@ -39,12 +39,13 @@ A Reference is **non-actionable, durable** information stored for future retriev
 
 - User profile (`type:user`) — role, preferences, knowledge.
 - Feedback patterns (`type:feedback`) — corrections and validations the user has given about how to work.
+- Areas of focus (`type:area_of_focus`) — standing attention without a defined outcome (e.g. an ongoing responsibility or role). Promote to `type:project` when a deliverable and deadline appear.
 - Project context (`type:project`) — non-derivable background on ongoing work.
 - External pointers (`type:reference`) — dashboards, trackers, source-of-truth links.
 
 Storage layout is `reference/<tool>/<id>.md` — `<tool>` namespaces references per AI assistant so multi-assistant repos don't collide. The `--tool` flag selects the namespace and defaults to `claude`.
 
-Each tool directory carries an auto-generated `INDEX.md` that lists every active reference grouped by `type:*` tag (`## user`, `## feedback`, `## project`, `## reference`, trailing `## other` for anything else). The index is rewritten on every mutation; AI sessions can load it cheaply at startup. Do not edit `INDEX.md` by hand — run `htd reference reindex` to repair if it ever drifts (e.g., merge conflict).
+Each tool directory carries an auto-generated `INDEX.md` that lists every active reference grouped by `type:*` tag (`## user`, `## feedback`, `## area_of_focus`, `## project`, `## reference`, trailing `## other` for anything else). The index is rewritten on every mutation; AI sessions can load it cheaply at startup. Do not edit `INDEX.md` by hand — run `htd reference reindex` to repair if it ever drifts (e.g., merge conflict).
 
 The body convention is **fact line first** (used as the INDEX description, truncated to 80 runes) optionally followed by a `## How to apply` section. The convention isn't enforced; just follow it.
 
@@ -129,7 +130,7 @@ All commands accept `--json` for machine-readable output and `--path` to target 
 - `htd item restore ID` — undo an accidental `engage done`/`cancel`/`discard`/`archive`; brings a terminal item back to `active` and moves it to `items/<kind>/`.
 
 **Reference (tool-scoped durable notes)** — see "References" above for the data type. All reference verbs accept `--tool TOOL` and default to `claude`.
-- `htd reference add --title TEXT [--body TEXT] [--tag TAG]... [--tool TOOL]` — tag with `type:user|feedback|project|reference` to drive INDEX.md grouping; other tags fall into `## other`.
+- `htd reference add --title TEXT [--body TEXT] [--tag TAG]... [--tool TOOL]` — tag with `type:user|feedback|area_of_focus|project|reference` to drive INDEX.md grouping; other tags fall into `## other`.
 - `htd reference get ID` — falls back to the archive automatically. Archived hits are marked `(archived)` in text mode and `archived: true` in JSON.
 - `htd reference list [--tool TOOL] [--tag TAG] [--archived]` — default lists the active set; `--archived` flips to the archive view (mutually exclusive).
 - `htd reference update ID FIELD=VALUE...` — supported fields: `title`, `body`, `tags`. Protected: `id`, `created_at`, `tool`.
@@ -159,6 +160,7 @@ All commands accept `--json` for machine-readable output and `--path` to target 
 | Completing a task | `htd engage done ID` (direct call is fine) |
 | "I marked the wrong item done", undo an accidental terminal transition | `htd item restore ID` |
 | "remember that I prefer X", "save this as a fact", "for future sessions you should know Y" | `/htd:reference` or `htd reference add --title "..." --tag type:user --body "..."` |
+| "I'm taking on X as an ongoing responsibility", "I'm now stewarding Y but no concrete deliverable yet" | `htd reference add --title "..." --tag type:area_of_focus --body "..."` (promote to `type:project` once a deliverable + deadline appear) |
 | "what do you know about my project", "load my context", session-start orientation | Read `reference/<tool>/INDEX.md` directly, then `htd reference get <id>` for entries you need |
 | "this fact is stale" / "we don't do X anymore" | `htd reference archive ID` (use `restore` if you regret it) |
 | "the index looks wrong" / merge conflict in `INDEX.md` | `htd reference reindex` |

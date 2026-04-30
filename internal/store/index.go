@@ -20,7 +20,7 @@ const IndexEmptyMarker = "_No entries._"
 // Anything not in this list (including unrecognized type:* values and
 // references with no type:* tag at all) falls into the trailing "other"
 // section.
-var indexCanonicalTypes = []string{"user", "feedback", "project", "reference"}
+var indexCanonicalTypes = []string{"user", "feedback", "area_of_focus", "project", "reference"}
 
 // indexOtherSection is the header for entries that do not belong to any of
 // the canonical type sections.

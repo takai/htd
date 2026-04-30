@@ -54,10 +54,11 @@ func TestRenderIndexGroupingAndSort(t *testing.T) {
 		refWithBody("u_old", "User old", "user old fact", t0, "type:user"),
 		refWithBody("u_new", "User new", "user new fact", t0.Add(2*time.Hour), "type:user"),
 		refWithBody("f1", "Feedback one", "feedback fact", t0.Add(time.Hour), "type:feedback"),
+		refWithBody("a1", "Area one", "area fact", t0, "type:area_of_focus"),
 		refWithBody("p1", "Project one", "project fact", t0, "type:project"),
 		refWithBody("r1", "Reference one", "reference fact", t0, "type:reference"),
 		refWithBody("o1", "Other one", "other fact", t0, "misc"),
-		refWithBody("o2", "Other two", "other2 fact", t0, "type:area_of_focus"),
+		refWithBody("o2", "Other two", "other2 fact", t0, "type:misc"),
 	}
 	got := string(store.RenderIndex(refs))
 
@@ -68,6 +69,8 @@ func TestRenderIndexGroupingAndSort(t *testing.T) {
 		"User old",
 		"## feedback",
 		"Feedback one",
+		"## area_of_focus",
+		"Area one",
 		"## project",
 		"Project one",
 		"## reference",
@@ -152,13 +155,13 @@ func TestRenderIndexTruncatesLongDesc(t *testing.T) {
 func TestRenderIndexUnknownTypeFallsToOther(t *testing.T) {
 	t0 := time.Date(2026, 4, 17, 9, 0, 0, 0, time.UTC)
 	refs := []store.ReferenceWithBody{
-		refWithBody("a", "A", "fact", t0, "type:area_of_focus"),
+		refWithBody("a", "A", "fact", t0, "type:misc"),
 	}
 	got := string(store.RenderIndex(refs))
 	if !strings.Contains(got, "## other") {
 		t.Errorf("expected `## other` section:\n%s", got)
 	}
-	for _, section := range []string{"## user", "## feedback", "## project", "## reference"} {
+	for _, section := range []string{"## user", "## feedback", "## area_of_focus", "## project", "## reference"} {
 		if strings.Contains(got, section) {
 			t.Errorf("did not expect section %q in single-other output:\n%s", section, got)
 		}
