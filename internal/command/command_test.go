@@ -1292,6 +1292,297 @@ func TestReflectProjectsStalled(t *testing.T) {
 	}
 }
 
+func TestReflectProject(t *testing.T) {
+	dir := setupDir(t)
+	proj := nowItem("20260501-proj", model.KindProject, model.StatusActive)
+	writeItem(t, dir, proj, "")
+
+	na := nowItem("20260501-na", model.KindNextAction, model.StatusActive)
+	na.Project = "20260501-proj"
+	writeItem(t, dir, na, "")
+
+	wf := nowItem("20260501-wf", model.KindWaitingFor, model.StatusActive)
+	wf.Project = "20260501-proj"
+	writeItem(t, dir, wf, "")
+
+	defer1 := time.Now().AddDate(0, 0, 7)
+	tk := nowItem("20260501-tk", model.KindTickler, model.StatusActive)
+	tk.Project = "20260501-proj"
+	tk.DeferUntil = &defer1
+	writeItem(t, dir, tk, "")
+
+	arch := nowItem("20260501-arch", model.KindNextAction, model.StatusDone)
+	arch.Project = "20260501-proj"
+	writeItem(t, dir, arch, "")
+
+	// Sibling with no project link must not leak in.
+	stray := nowItem("20260501-stray", model.KindNextAction, model.StatusActive)
+	writeItem(t, dir, stray, "")
+
+	out, _, err := runCmd(t, dir, "reflect", "project", "20260501-proj")
+	if err != nil {
+		t.Fatalf("reflect project: %v", err)
+	}
+
+	for _, want := range []string{
+		"id:         20260501-proj",
+		"20260501-na", "20260501-wf", "20260501-tk", "20260501-arch",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in output:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "20260501-stray") {
+		t.Errorf("unrelated item leaked into output:\n%s", out)
+	}
+}
+
+func TestReflectProjectSections(t *testing.T) {
+	dir := setupDir(t)
+	proj := nowItem("20260501-proj", model.KindProject, model.StatusActive)
+	writeItem(t, dir, proj, "")
+
+	na := nowItem("20260501-na", model.KindNextAction, model.StatusActive)
+	na.Project = "20260501-proj"
+	writeItem(t, dir, na, "")
+	wf := nowItem("20260501-wf", model.KindWaitingFor, model.StatusActive)
+	wf.Project = "20260501-proj"
+	writeItem(t, dir, wf, "")
+	deferAt := time.Now().AddDate(0, 0, 7)
+	tk := nowItem("20260501-tk", model.KindTickler, model.StatusActive)
+	tk.Project = "20260501-proj"
+	tk.DeferUntil = &deferAt
+	writeItem(t, dir, tk, "")
+	arch := nowItem("20260501-arch", model.KindNextAction, model.StatusDone)
+	arch.Project = "20260501-proj"
+	writeItem(t, dir, arch, "")
+
+	out, _, err := runCmd(t, dir, "reflect", "project", "20260501-proj")
+	if err != nil {
+		t.Fatalf("reflect project: %v", err)
+	}
+
+	naIdx := strings.Index(out, "next actions:")
+	wfIdx := strings.Index(out, "waiting for:")
+	tkIdx := strings.Index(out, "ticklers:")
+	archIdx := strings.Index(out, "recently archived")
+	if naIdx < 0 || wfIdx < 0 || tkIdx < 0 || archIdx < 0 {
+		t.Fatalf("missing section header(s): naIdx=%d wfIdx=%d tkIdx=%d archIdx=%d\n%s",
+			naIdx, wfIdx, tkIdx, archIdx, out)
+	}
+	if naIdx >= wfIdx || wfIdx >= tkIdx || tkIdx >= archIdx {
+		t.Fatalf("section ordering wrong:\n%s", out)
+	}
+
+	naSec := out[naIdx:wfIdx]
+	wfSec := out[wfIdx:tkIdx]
+	tkSec := out[tkIdx:archIdx]
+	archSec := out[archIdx:]
+
+	if !strings.Contains(naSec, "TAGS") || !strings.Contains(naSec, "UPDATED_AT") {
+		t.Errorf("next actions section missing TAGS/UPDATED_AT columns:\n%s", naSec)
+	}
+	if !strings.Contains(wfSec, "CREATED_AT") {
+		t.Errorf("waiting for section missing CREATED_AT column:\n%s", wfSec)
+	}
+	if strings.Contains(wfSec, "STATUS") {
+		t.Errorf("waiting for section should not show STATUS column:\n%s", wfSec)
+	}
+	if !strings.Contains(tkSec, "DEFER_UNTIL") {
+		t.Errorf("ticklers section missing DEFER_UNTIL column:\n%s", tkSec)
+	}
+	if !strings.Contains(archSec, "KIND") || !strings.Contains(archSec, "STATUS") {
+		t.Errorf("archive section missing KIND/STATUS columns:\n%s", archSec)
+	}
+}
+
+func TestReflectProjectEmptySections(t *testing.T) {
+	dir := setupDir(t)
+	proj := nowItem("20260501-proj", model.KindProject, model.StatusActive)
+	writeItem(t, dir, proj, "")
+
+	out, _, err := runCmd(t, dir, "reflect", "project", "20260501-proj")
+	if err != nil {
+		t.Fatalf("reflect project: %v", err)
+	}
+	for _, want := range []string{"next actions:", "waiting for:", "ticklers:", "recently archived"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing section header %q in output:\n%s", want, out)
+		}
+	}
+	if strings.Count(out, "(none)") != 4 {
+		t.Errorf("expected 4 (none) markers for empty sections, got %d:\n%s",
+			strings.Count(out, "(none)"), out)
+	}
+}
+
+func TestReflectProjectNotFound(t *testing.T) {
+	dir := setupDir(t)
+	_, _, err := runCmd(t, dir, "reflect", "project", "does-not-exist")
+	if err == nil {
+		t.Fatalf("expected NotFound error, got nil")
+	}
+	if !store.IsNotFound(err) {
+		t.Errorf("expected store.NotFoundError, got %T: %v", err, err)
+	}
+}
+
+func TestReflectProjectRejectsNonProject(t *testing.T) {
+	dir := setupDir(t)
+	na := nowItem("20260501-na", model.KindNextAction, model.StatusActive)
+	writeItem(t, dir, na, "")
+
+	_, _, err := runCmd(t, dir, "reflect", "project", "20260501-na")
+	if err == nil {
+		t.Fatalf("expected NotFound error for non-project ID, got nil")
+	}
+	if !store.IsNotFound(err) {
+		t.Errorf("expected store.NotFoundError, got %T: %v", err, err)
+	}
+}
+
+func TestReflectProjectArchivedSinceWindow(t *testing.T) {
+	dir := setupDir(t)
+	proj := nowItem("20260501-proj", model.KindProject, model.StatusActive)
+	writeItem(t, dir, proj, "")
+
+	recent := nowItem("20260501-recent_done", model.KindNextAction, model.StatusDone)
+	recent.Project = "20260501-proj"
+	recent.UpdatedAt = time.Now().AddDate(0, 0, -5)
+	writeItem(t, dir, recent, "")
+
+	old := nowItem("20260101-old_done", model.KindNextAction, model.StatusDone)
+	old.Project = "20260501-proj"
+	old.UpdatedAt = time.Now().AddDate(0, 0, -60)
+	writeItem(t, dir, old, "")
+
+	out, _, err := runCmd(t, dir, "reflect", "project", "20260501-proj")
+	if err != nil {
+		t.Fatalf("reflect project: %v", err)
+	}
+	if !strings.Contains(out, "20260501-recent_done") {
+		t.Errorf("default cutoff should include 5-day-old item:\n%s", out)
+	}
+	if strings.Contains(out, "20260101-old_done") {
+		t.Errorf("default 30-day cutoff should hide 60-day-old item:\n%s", out)
+	}
+
+	out, _, err = runCmd(t, dir, "reflect", "project", "20260501-proj", "--since", "")
+	if err != nil {
+		t.Fatalf("reflect project --since '': %v", err)
+	}
+	if !strings.Contains(out, "20260501-recent_done") {
+		t.Errorf("--since '' should still show recent:\n%s", out)
+	}
+	if !strings.Contains(out, "20260101-old_done") {
+		t.Errorf("--since '' should show old:\n%s", out)
+	}
+
+	out, _, err = runCmd(t, dir, "reflect", "project", "20260501-proj",
+		"--since", time.Now().AddDate(0, 0, -10).Format("2006-01-02"))
+	if err != nil {
+		t.Fatalf("reflect project --since: %v", err)
+	}
+	if !strings.Contains(out, "20260501-recent_done") {
+		t.Errorf("--since 10 days ago should include 5-day-old item:\n%s", out)
+	}
+	if strings.Contains(out, "20260101-old_done") {
+		t.Errorf("--since 10 days ago should hide 60-day-old item:\n%s", out)
+	}
+}
+
+func TestReflectProjectInvalidSince(t *testing.T) {
+	dir := setupDir(t)
+	proj := nowItem("20260501-proj", model.KindProject, model.StatusActive)
+	writeItem(t, dir, proj, "")
+
+	_, _, err := runCmd(t, dir, "reflect", "project", "20260501-proj", "--since", "not-a-date")
+	if err == nil {
+		t.Fatalf("expected error for malformed --since")
+	}
+}
+
+func TestReflectProjectArchivedAllTerminalStatuses(t *testing.T) {
+	dir := setupDir(t)
+	proj := nowItem("20260501-proj", model.KindProject, model.StatusActive)
+	writeItem(t, dir, proj, "")
+
+	for _, st := range []model.Status{model.StatusDone, model.StatusCanceled, model.StatusArchived} {
+		it := nowItem("20260501-arch_"+string(st), model.KindNextAction, st)
+		it.Project = "20260501-proj"
+		writeItem(t, dir, it, "")
+	}
+
+	out, _, err := runCmd(t, dir, "reflect", "project", "20260501-proj")
+	if err != nil {
+		t.Fatalf("reflect project: %v", err)
+	}
+	for _, st := range []model.Status{model.StatusDone, model.StatusCanceled, model.StatusArchived} {
+		want := "20260501-arch_" + string(st)
+		if !strings.Contains(out, want) {
+			t.Errorf("archive section should include %s items: missing %q\n%s", st, want, out)
+		}
+	}
+}
+
+func TestReflectProjectJSON(t *testing.T) {
+	dir := setupDir(t)
+	proj := nowItem("20260501-proj", model.KindProject, model.StatusActive)
+	writeItem(t, dir, proj, "Project body content")
+
+	na := nowItem("20260501-na", model.KindNextAction, model.StatusActive)
+	na.Project = "20260501-proj"
+	writeItem(t, dir, na, "")
+
+	arch := nowItem("20260501-arch", model.KindNextAction, model.StatusDone)
+	arch.Project = "20260501-proj"
+	writeItem(t, dir, arch, "")
+
+	out, _, err := runCmd(t, dir, "--json", "reflect", "project", "20260501-proj")
+	if err != nil {
+		t.Fatalf("reflect project --json: %v", err)
+	}
+
+	var v struct {
+		Project     map[string]any   `json:"project"`
+		NextActions []map[string]any `json:"next_actions"`
+		WaitingFor  []map[string]any `json:"waiting_for"`
+		Ticklers    []map[string]any `json:"ticklers"`
+		Archived    []map[string]any `json:"archived"`
+	}
+	if err := json.Unmarshal([]byte(out), &v); err != nil {
+		t.Fatalf("parse json: %v\n%s", err, out)
+	}
+
+	if v.Project["id"] != "20260501-proj" {
+		t.Errorf("project.id: %v", v.Project["id"])
+	}
+	if v.Project["body"] != "Project body content" {
+		t.Errorf("project.body: %v", v.Project["body"])
+	}
+	if len(v.NextActions) != 1 || v.NextActions[0]["id"] != "20260501-na" {
+		t.Errorf("next_actions: %v", v.NextActions)
+	}
+	if _, has := v.NextActions[0]["body"]; has {
+		t.Errorf("list entry should omit body: %v", v.NextActions[0])
+	}
+	if len(v.Archived) != 1 || v.Archived[0]["id"] != "20260501-arch" {
+		t.Errorf("archived: %v", v.Archived)
+	}
+	if v.WaitingFor == nil {
+		t.Errorf("waiting_for should be an empty array, not absent")
+	}
+	if v.Ticklers == nil {
+		t.Errorf("ticklers should be an empty array, not absent")
+	}
+	if len(v.WaitingFor) != 0 {
+		t.Errorf("waiting_for: want empty, got %v", v.WaitingFor)
+	}
+	if len(v.Ticklers) != 0 {
+		t.Errorf("ticklers: want empty, got %v", v.Ticklers)
+	}
+}
+
 func TestReflectWaiting(t *testing.T) {
 	dir := setupDir(t)
 	writeItem(t, dir, nowItem("20260417-wait1", model.KindWaitingFor, model.StatusActive), "")

@@ -19,12 +19,124 @@ func newReflectCommand(c *container) *cobra.Command {
 	cmd.AddCommand(
 		newReflectNextActionsCommand(c),
 		newReflectProjectsCommand(c),
+		newReflectProjectCommand(c),
 		newReflectWaitingCommand(c),
 		newReflectReviewCommand(c),
 		newReflectLogCommand(c),
 		newReflectTicklerCommand(c),
 	)
 	return cmd
+}
+
+func newReflectProjectCommand(c *container) *cobra.Command {
+	const archiveDefaultDays = 30
+	var since string
+
+	cmd := &cobra.Command{
+		Use:   "project ID",
+		Short: "Show a project with its active and recently-archived children",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			projectID := args[0]
+
+			path, err := store.FindItem(c.cfg, projectID)
+			if err != nil {
+				return err
+			}
+			project, body, err := store.Read(path)
+			if err != nil {
+				return err
+			}
+			if project.Kind != model.KindProject {
+				return &store.NotFoundError{Kind: store.EntityItem, ID: projectID}
+			}
+
+			cutoff, err := resolveProjectArchiveCutoff(cmd, since, archiveDefaultDays)
+			if err != nil {
+				return err
+			}
+
+			active := model.StatusActive
+			naKind := model.KindNextAction
+			wfKind := model.KindWaitingFor
+			tkKind := model.KindTickler
+
+			nextActions, err := store.List(c.cfg, store.Filter{Kind: &naKind, Status: &active, ProjectID: projectID})
+			if err != nil {
+				return err
+			}
+			sort.Slice(nextActions, func(i, j int) bool {
+				return nextActions[i].UpdatedAt.After(nextActions[j].UpdatedAt)
+			})
+
+			waitingFor, err := store.List(c.cfg, store.Filter{Kind: &wfKind, Status: &active, ProjectID: projectID})
+			if err != nil {
+				return err
+			}
+			sort.Slice(waitingFor, func(i, j int) bool {
+				return waitingFor[i].CreatedAt.Before(waitingFor[j].CreatedAt)
+			})
+
+			ticklers, err := store.List(c.cfg, store.Filter{Kind: &tkKind, Status: &active, ProjectID: projectID})
+			if err != nil {
+				return err
+			}
+			sort.Slice(ticklers, func(i, j int) bool {
+				if ticklers[i].DeferUntil == nil {
+					return false
+				}
+				if ticklers[j].DeferUntil == nil {
+					return true
+				}
+				return ticklers[i].DeferUntil.Before(*ticklers[j].DeferUntil)
+			})
+
+			linked, err := store.List(c.cfg, store.Filter{ProjectID: projectID})
+			if err != nil {
+				return err
+			}
+			var archived []*model.Item
+			for _, it := range linked {
+				if !model.IsTerminal(it.Status) {
+					continue
+				}
+				if !cutoff.IsZero() && it.UpdatedAt.Before(cutoff) {
+					continue
+				}
+				archived = append(archived, it)
+			}
+			sort.Slice(archived, func(i, j int) bool {
+				return archived[i].UpdatedAt.After(archived[j].UpdatedAt)
+			})
+
+			c.printer.PrintProjectView(project, body, nextActions, waitingFor, ticklers, archived, cutoff)
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&since, "since", "",
+		"Show archived children updated on or after this date (YYYY-MM-DD); default is 30 days ago, pass --since '' to show all")
+	return cmd
+}
+
+// resolveProjectArchiveCutoff returns the cutoff time for the archive
+// section of `reflect project`. The flag's three-state behavior is:
+//   - flag absent → default cutoff (now minus defaultDays)
+//   - --since YYYY-MM-DD → cutoff at that date, local midnight
+//   - --since '' (explicitly empty) → zero time, meaning "no cutoff"
+func resolveProjectArchiveCutoff(cmd *cobra.Command, since string, defaultDays int) (time.Time, error) {
+	flag := cmd.Flags().Lookup("since")
+	if flag == nil || !flag.Changed {
+		return time.Now().AddDate(0, 0, -defaultDays), nil
+	}
+	if since == "" {
+		return time.Time{}, nil
+	}
+	t, err := time.ParseInLocation("2006-01-02", since, time.Local)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("--since: cannot parse %q as date", since)
+	}
+	return t, nil
 }
 
 func newReflectNextActionsCommand(c *container) *cobra.Command {

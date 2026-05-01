@@ -507,6 +507,63 @@ $ htd reflect tickler --pull
 20260417-quarterly_review_prep
 ```
 
+### 5.7 `htd reflect project`
+
+Show a project's metadata together with its active and recently-archived children, in one call.
+
+```
+htd reflect project ID [--since DATE]
+```
+
+| Argument / Option | Required | Description |
+|-------------------|----------|-------------|
+| `ID` | yes | The project's item ID |
+| `--since` | no | Cutoff for the archived-children section (`YYYY-MM-DD`). Default: 30 days ago. Pass `--since ""` to show every archived child. |
+
+**Behavior:**
+
+1. Look up the item by `ID`. Exit with code `2` if the item is not found, or if the resolved item's `kind` is not `project`.
+2. Display project metadata and body using the same fields as `clarify show` / `item get`.
+3. List active children linked to the project (`project: ID` in front matter), grouped into three sections:
+   - **next actions** — `kind: next_action`, sorted by `updated_at` descending. Columns: `ID`, `TITLE`, `TAGS`, `UPDATED_AT`.
+   - **waiting for** — `kind: waiting_for`, sorted by `created_at` ascending (oldest first, mirroring `reflect waiting`). Columns: `ID`, `TITLE`, `CREATED_AT`.
+   - **ticklers** — `kind: tickler`, sorted by `defer_until` ascending (earliest fire first; nil last). Columns: `ID`, `TITLE`, `DEFER_UNTIL`.
+4. List recently archived children — items linked to the project whose `status` is terminal (`done`, `canceled`, `discarded`, or `archived`) and whose `updated_at` is on or after the cutoff. Sorted by `updated_at` descending. Columns: `ID`, `KIND`, `STATUS`, `UPDATED_AT`, `TITLE`.
+5. Sections with no children render the section header followed by `(none)`, so the structure stays predictable.
+
+**Constraints:**
+
+- `someday` children are not surfaced; per orthodox workflow, `someday` items rarely carry a project link.
+
+**JSON output:**
+
+A single object so it parses in one read:
+
+```json
+{
+  "project":      { "id": "...", "title": "...", "body": "...", ... },
+  "next_actions": [ { ... }, ... ],
+  "waiting_for":  [ ... ],
+  "ticklers":     [ ... ],
+  "archived":     [ ... ]
+}
+```
+
+The `project` entry includes the body; child entries omit it, matching the convention list views already use. Empty sections render as `[]`, never `null`.
+
+**Examples:**
+
+```
+# Default 30-day archive window
+$ htd reflect project 20260420-launch_cli
+
+# Full archive history
+$ htd reflect project 20260420-launch_cli --since ""
+
+# Custom window
+$ htd reflect project 20260420-launch_cli --since 2026-04-01
+```
+
 ---
 
 ## 6. Engage
@@ -1208,6 +1265,7 @@ htd completion zsh > "${fpath[1]}/_htd"
 | `htd reflect review` | List items due for review |
 | `htd reflect log --since DATE` | List recently resolved items (activity log) |
 | `htd reflect tickler [--pull]` | List fired tickler items, or pull them into the inbox |
+| `htd reflect project ID` | Show a project with its active and recently-archived children |
 | `htd engage done ID [ID...]` | Mark one or more items as done |
 | `htd engage cancel ID [ID...]` | Cancel one or more active items |
 | `htd engage next-actions` | List next actions ready to work on now |
