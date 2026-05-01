@@ -316,6 +316,167 @@ func (p *Printer) printItemsJSON(items []*model.Item) {
 	fmt.Fprintln(p.out, string(data))
 }
 
+// PrintProjectView prints `reflect project` output: project metadata + body
+// followed by per-section tables for active children (next actions, waiting
+// for, ticklers) and recently archived children. Each section uses columns
+// chosen for the load-bearing signal in this view (see docs/cli.md §5.7).
+//
+// archivedSince is the cutoff used for the archive section; the zero value
+// means "no cutoff" (rendered as "(all)" in the section header).
+//
+// JSON output is a single object: {project, next_actions, waiting_for,
+// ticklers, archived}. The project entry includes its body; child entries
+// omit body, matching the convention printItemsJSON already uses for lists.
+func (p *Printer) PrintProjectView(
+	project *model.Item, body string,
+	nextActions, waitingFor, ticklers, archived []*model.Item,
+	archivedSince time.Time,
+) {
+	if p.json {
+		p.printProjectViewJSON(project, body, nextActions, waitingFor, ticklers, archived)
+		return
+	}
+	p.printProjectViewText(project, body, nextActions, waitingFor, ticklers, archived, archivedSince)
+}
+
+func (p *Printer) printProjectViewText(
+	project *model.Item, body string,
+	nextActions, waitingFor, ticklers, archived []*model.Item,
+	archivedSince time.Time,
+) {
+	p.printItemText(project, body)
+	fmt.Fprintln(p.out)
+
+	fmt.Fprintln(p.out, "next actions:")
+	writeProjectNextActionRows(p.out, nextActions)
+	fmt.Fprintln(p.out)
+
+	fmt.Fprintln(p.out, "waiting for:")
+	writeProjectWaitingRows(p.out, waitingFor)
+	fmt.Fprintln(p.out)
+
+	fmt.Fprintln(p.out, "ticklers:")
+	writeProjectTicklerRows(p.out, ticklers)
+	fmt.Fprintln(p.out)
+
+	label := "recently archived"
+	if archivedSince.IsZero() {
+		label += " (all):"
+	} else {
+		label += " (since " + archivedSince.Format("2006-01-02") + "):"
+	}
+	fmt.Fprintln(p.out, label)
+	writeProjectArchiveRows(p.out, archived)
+}
+
+func writeProjectNextActionRows(w io.Writer, items []*model.Item) {
+	if len(items) == 0 {
+		fmt.Fprintln(w, "(none)")
+		return
+	}
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "ID\tTITLE\tTAGS\tUPDATED_AT")
+	for _, it := range items {
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n",
+			it.ID,
+			truncateRunes(it.Title, 40),
+			formatTagList(it.Tags),
+			it.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		)
+	}
+	_ = tw.Flush()
+}
+
+func writeProjectWaitingRows(w io.Writer, items []*model.Item) {
+	if len(items) == 0 {
+		fmt.Fprintln(w, "(none)")
+		return
+	}
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "ID\tTITLE\tCREATED_AT")
+	for _, it := range items {
+		fmt.Fprintf(tw, "%s\t%s\t%s\n",
+			it.ID,
+			truncateRunes(it.Title, 40),
+			it.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		)
+	}
+	_ = tw.Flush()
+}
+
+func writeProjectTicklerRows(w io.Writer, items []*model.Item) {
+	if len(items) == 0 {
+		fmt.Fprintln(w, "(none)")
+		return
+	}
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "ID\tTITLE\tDEFER_UNTIL")
+	for _, it := range items {
+		fmt.Fprintf(tw, "%s\t%s\t%s\n",
+			it.ID,
+			truncateRunes(it.Title, 40),
+			formatDueAt(it.DeferUntil),
+		)
+	}
+	_ = tw.Flush()
+}
+
+func writeProjectArchiveRows(w io.Writer, items []*model.Item) {
+	if len(items) == 0 {
+		fmt.Fprintln(w, "(none)")
+		return
+	}
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "ID\tKIND\tSTATUS\tUPDATED_AT\tTITLE")
+	for _, it := range items {
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
+			it.ID,
+			it.Kind,
+			it.Status,
+			it.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			truncateRunes(it.Title, 40),
+		)
+	}
+	_ = tw.Flush()
+}
+
+func formatTagList(tags []string) string {
+	if len(tags) == 0 {
+		return "-"
+	}
+	return strings.Join(tags, ",")
+}
+
+func (p *Printer) printProjectViewJSON(
+	project *model.Item, body string,
+	nextActions, waitingFor, ticklers, archived []*model.Item,
+) {
+	type projectViewJSON struct {
+		Project     itemJSON   `json:"project"`
+		NextActions []itemJSON `json:"next_actions"`
+		WaitingFor  []itemJSON `json:"waiting_for"`
+		Ticklers    []itemJSON `json:"ticklers"`
+		Archived    []itemJSON `json:"archived"`
+	}
+	v := projectViewJSON{
+		Project:     toItemJSON(project, body),
+		NextActions: toItemJSONList(nextActions),
+		WaitingFor:  toItemJSONList(waitingFor),
+		Ticklers:    toItemJSONList(ticklers),
+		Archived:    toItemJSONList(archived),
+	}
+	data, _ := json.Marshal(v)
+	fmt.Fprintln(p.out, string(data))
+}
+
+func toItemJSONList(items []*model.Item) []itemJSON {
+	arr := make([]itemJSON, len(items))
+	for i, it := range items {
+		arr[i] = toItemJSON(it, "")
+	}
+	return arr
+}
+
 // PrintLogItems prints a reflect log view: ID, KIND, STATUS, UPDATED_AT, TITLE.
 // JSON output is the same shape as PrintItems (full item fields).
 func (p *Printer) PrintLogItems(items []*model.Item) {
