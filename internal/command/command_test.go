@@ -276,6 +276,20 @@ func TestClarifyShowNotFound(t *testing.T) {
 	}
 }
 
+// Cobra must not print the error itself; the package-level Execute() owns
+// stderr formatting. Otherwise users see the same message twice (once with
+// "Error:" from cobra and once with "error:" from Execute).
+func TestRootSilencesCobraErrorOutput(t *testing.T) {
+	dir := setupDir(t)
+	_, errOut, err := runCmd(t, dir, "item", "get", "list")
+	if !store.IsNotFound(err) {
+		t.Fatalf("expected NotFoundError, got %v", err)
+	}
+	if errOut != "" {
+		t.Errorf("cobra should not print errors; got stderr=%q", errOut)
+	}
+}
+
 func TestClarifyUpdate(t *testing.T) {
 	dir := setupDir(t)
 	item := nowItem("20260417-update_me", model.KindInbox, model.StatusActive)

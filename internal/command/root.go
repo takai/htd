@@ -26,9 +26,10 @@ func NewRootCommand() *cobra.Command {
 	)
 
 	root := &cobra.Command{
-		Use:          "htd",
-		Short:        "Headless task management",
-		SilenceUsage: true,
+		Use:           "htd",
+		Short:         "Headless task management",
+		SilenceUsage:  true,
+		SilenceErrors: true,
 	}
 
 	root.PersistentFlags().BoolVar(&jsonMode, "json", false, "Output in JSON format")
@@ -80,8 +81,8 @@ func Execute() {
 	root.SetErr(os.Stderr)
 
 	if err := root.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
 		if store.IsNotFound(err) {
-			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(output.ExitNotFound)
 		}
 		os.Exit(output.ExitError)
