@@ -42,7 +42,7 @@ You run the Clarify phase of the htd workflow. Your job is to turn every inbox i
    - Update the title if unclear: `htd clarify update <id> --title "<new>"`.
    - Link to a project: `htd organize link <id> <project-id>`. Only suggest this if a candidate shows up in a keyword-narrowed search: `htd item list --kind project --query '<keyword from the item>' --json`.
    - Schedule due/defer/review: `htd organize schedule <id> ...`. Only if the user mentions timing.
-   - Add tags: `htd item update <id> tags='[a,b]'`.
+   - Add tags: `htd item update <id> tags='[a,b]'`. Before proposing a fresh tag, sanity-check with `htd tag list --similar <candidate> --json` so you suggest the existing variant instead of inventing a new one.
 
 5. **Confirm before every mutating command.** Show the exact `htd` command you're about to run and wait for yes/ok. If the user says "just do it" or "go ahead for the rest", you may batch confirmations for this session, but still narrate each command.
 

@@ -493,9 +493,51 @@ Read `journal/<NAME>.md`. Display frontmatter (if present) then body. Exit `2` i
 
 ---
 
-## 10. Init
+## 10. Tag
 
-### 10.1 `htd init`
+Tag-level operations across items. References' `type:*` tags are not aggregated here; they follow a formal enum and don't drift.
+
+### 10.1 `htd tag list [--similar TAG]`
+
+Enumerate every tag used on items (active + archived) with its item count. Helps surface drift before introducing a new tag (e.g., `ivry_job_scheduler` vs `ivry-job-scheduler`).
+
+| Option | Req | Description |
+|--------|-----|-------------|
+| `--similar` | no | Narrow to tags that look like the supplied value. A tag matches if its Levenshtein distance from `TAG` is ≤ 3, or its normalized form collides with the normalized `TAG`. Normalization lowercases and strips everything outside `[a-z0-9]`, so `admin_ivry_jp`, `admin.ivry.jp`, and `AdminIvryJP` all collapse to one group. |
+
+**Output:**
+
+- Text: `TAG`, `COUNT`. Sort by count desc, tag asc as tiebreaker. With `--similar`, an extra `DISTANCE` column is shown and rows sort by (distance asc, count desc, tag asc).
+- JSON: `[{"tag": "...", "count": N}, ...]`. `distance` is intentionally omitted to keep the JSON shape independent of `--similar`. Empty repo renders as `[]`.
+
+Tags are case-sensitive throughout htd, so `Bug` and `bug` count separately — that's the signal the command is designed to surface.
+
+**Examples:**
+
+```
+$ htd tag list
+TAG                   COUNT
+bug                   12
+docs                  7
+ivry_job_scheduler    5
+ivry-job-scheduler    1
+
+$ htd tag list --similar ivry_job_scheduler
+TAG                   COUNT  DISTANCE
+ivry_job_scheduler    5      0
+ivry-job-scheduler    1      2
+
+$ htd tag list --similar admin_ivry_jp
+TAG                COUNT  DISTANCE
+admin.ivry.jp      3      2
+adminivryjp        1      4
+```
+
+---
+
+## 11. Init
+
+### 11.1 `htd init`
 
 Create the directory layout (see `docs/datamodel.md §7`) under `--path` and print the set, one path per line, stable order. Idempotent. Other commands also create missing directories as a side effect; `init` makes setup explicit. JSON: array of directory paths.
 
@@ -515,9 +557,9 @@ journal
 
 ---
 
-## 11. Completion
+## 12. Completion
 
-### 11.1 `htd completion SHELL`
+### 12.1 `htd completion SHELL`
 
 Emit completion script for `bash`, `zsh`, `fish`, or `powershell` to stdout. Covers all groups, subcommands, flags. Does not touch `--path`; safe anywhere.
 
@@ -528,7 +570,7 @@ htd completion zsh > "${fpath[1]}/_htd"
 
 ---
 
-## 12. Command Summary
+## 13. Command Summary
 
 | Command | Description |
 |---------|-------------|
@@ -548,4 +590,5 @@ htd completion zsh > "${fpath[1]}/_htd"
 | `htd item get ID` / `list` / `update ID` / `archive ID` / `restore ID` | Low-level CRUD |
 | `htd reference add` / `get` / `list` / `update` / `archive` / `restore` / `reindex` | Tool-scoped notes |
 | `htd journal new` / `list` / `show NAME` | Journal entries |
+| `htd tag list [--similar TAG]` | List tags in use with counts; `--similar` surfaces near-matches |
 | `htd completion SHELL` | Shell completion |

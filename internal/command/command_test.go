@@ -2823,6 +2823,164 @@ func TestItemRestoreNotFound(t *testing.T) {
 	}
 }
 
+// ---------- tag ----------
+
+func writeTaggedItem(t *testing.T, dir, id string, kind model.Kind, status model.Status, tags []string) {
+	t.Helper()
+	item := nowItem(id, kind, status)
+	item.Tags = tags
+	writeItem(t, dir, item, "")
+}
+
+func TestTagList(t *testing.T) {
+	dir := setupDir(t)
+	writeTaggedItem(t, dir, "20260518-a", model.KindNextAction, model.StatusActive, []string{"bug", "docs"})
+	writeTaggedItem(t, dir, "20260518-b", model.KindNextAction, model.StatusActive, []string{"bug"})
+	writeTaggedItem(t, dir, "20260518-c", model.KindProject, model.StatusActive, []string{"docs"})
+	writeTaggedItem(t, dir, "20260518-d", model.KindNextAction, model.StatusActive, nil)
+
+	out, _, err := runCmd(t, dir, "tag", "list")
+	if err != nil {
+		t.Fatalf("tag list: %v", err)
+	}
+	if !strings.Contains(out, "TAG") || !strings.Contains(out, "COUNT") {
+		t.Errorf("missing header: %q", out)
+	}
+	for _, want := range []string{"bug", "docs"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing tag %q in output:\n%s", want, out)
+		}
+	}
+	bugIdx := strings.Index(out, "bug")
+	docsIdx := strings.Index(out, "docs")
+	if bugIdx == -1 || docsIdx == -1 {
+		t.Fatalf("expected both tags; got %q", out)
+	}
+	if bugIdx > docsIdx {
+		t.Errorf("count desc tiebreaker by alpha: bug(2) should precede docs(2), got:\n%s", out)
+	}
+}
+
+func TestTagListSortByCount(t *testing.T) {
+	dir := setupDir(t)
+	writeTaggedItem(t, dir, "20260518-a", model.KindNextAction, model.StatusActive, []string{"hot"})
+	writeTaggedItem(t, dir, "20260518-b", model.KindNextAction, model.StatusActive, []string{"hot"})
+	writeTaggedItem(t, dir, "20260518-c", model.KindNextAction, model.StatusActive, []string{"hot"})
+	writeTaggedItem(t, dir, "20260518-d", model.KindNextAction, model.StatusActive, []string{"cold"})
+
+	out, _, err := runCmd(t, dir, "tag", "list")
+	if err != nil {
+		t.Fatalf("tag list: %v", err)
+	}
+	hotIdx := strings.Index(out, "hot")
+	coldIdx := strings.Index(out, "cold")
+	if hotIdx == -1 || coldIdx == -1 {
+		t.Fatalf("missing tags: %q", out)
+	}
+	if hotIdx > coldIdx {
+		t.Errorf("higher count should appear first: hot(3) before cold(1), got:\n%s", out)
+	}
+}
+
+func TestTagListIncludesArchived(t *testing.T) {
+	dir := setupDir(t)
+	writeTaggedItem(t, dir, "20260101-old_done", model.KindNextAction, model.StatusDone, []string{"legacy_tag"})
+
+	out, _, err := runCmd(t, dir, "tag", "list")
+	if err != nil {
+		t.Fatalf("tag list: %v", err)
+	}
+	if !strings.Contains(out, "legacy_tag") {
+		t.Errorf("archived item's tag should appear: %q", out)
+	}
+}
+
+func TestTagListSimilarLevenshtein(t *testing.T) {
+	dir := setupDir(t)
+	writeTaggedItem(t, dir, "20260518-a", model.KindNextAction, model.StatusActive, []string{"ivry_job_scheduler"})
+	writeTaggedItem(t, dir, "20260518-b", model.KindNextAction, model.StatusActive, []string{"ivry-job-scheduler"})
+	writeTaggedItem(t, dir, "20260518-c", model.KindNextAction, model.StatusActive, []string{"totally_unrelated"})
+
+	out, _, err := runCmd(t, dir, "tag", "list", "--similar", "ivry_job_scheduler")
+	if err != nil {
+		t.Fatalf("tag list --similar: %v", err)
+	}
+	if !strings.Contains(out, "ivry_job_scheduler") {
+		t.Errorf("exact match should appear: %q", out)
+	}
+	if !strings.Contains(out, "ivry-job-scheduler") {
+		t.Errorf("levenshtein-neighbor should appear: %q", out)
+	}
+	if strings.Contains(out, "totally_unrelated") {
+		t.Errorf("unrelated tag should not appear: %q", out)
+	}
+	if !strings.Contains(out, "DISTANCE") {
+		t.Errorf("--similar should include DISTANCE column: %q", out)
+	}
+}
+
+func TestTagListSimilarNormalization(t *testing.T) {
+	dir := setupDir(t)
+	writeTaggedItem(t, dir, "20260518-a", model.KindNextAction, model.StatusActive, []string{"admin.ivry.jp"})
+	writeTaggedItem(t, dir, "20260518-b", model.KindNextAction, model.StatusActive, []string{"adminivryjp"})
+	writeTaggedItem(t, dir, "20260518-c", model.KindNextAction, model.StatusActive, []string{"unrelated"})
+
+	out, _, err := runCmd(t, dir, "tag", "list", "--similar", "admin_ivry_jp")
+	if err != nil {
+		t.Fatalf("tag list --similar: %v", err)
+	}
+	if !strings.Contains(out, "admin.ivry.jp") {
+		t.Errorf("punctuation variant should match via normalization: %q", out)
+	}
+	if !strings.Contains(out, "adminivryjp") {
+		t.Errorf("normalized variant should match: %q", out)
+	}
+	if strings.Contains(out, "unrelated") {
+		t.Errorf("unrelated tag should not appear: %q", out)
+	}
+}
+
+func TestTagListJSONEmpty(t *testing.T) {
+	dir := setupDir(t)
+	out, _, err := runCmd(t, dir, "tag", "list", "--json")
+	if err != nil {
+		t.Fatalf("tag list --json: %v", err)
+	}
+	var rows []map[string]any
+	if err := json.Unmarshal([]byte(out), &rows); err != nil {
+		t.Fatalf("output should be a valid JSON array, got %q: %v", out, err)
+	}
+	if len(rows) != 0 {
+		t.Errorf("empty repo should yield empty array, got %d rows", len(rows))
+	}
+}
+
+func TestTagListJSONShape(t *testing.T) {
+	dir := setupDir(t)
+	writeTaggedItem(t, dir, "20260518-a", model.KindNextAction, model.StatusActive, []string{"bug"})
+
+	out, _, err := runCmd(t, dir, "tag", "list", "--similar", "bug", "--json")
+	if err != nil {
+		t.Fatalf("tag list --similar --json: %v", err)
+	}
+	var rows []map[string]any
+	if err := json.Unmarshal([]byte(out), &rows); err != nil {
+		t.Fatalf("json parse: %v; out=%q", err, out)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("want 1 row, got %d: %q", len(rows), out)
+	}
+	if rows[0]["tag"] != "bug" {
+		t.Errorf("tag field: want bug, got %v", rows[0]["tag"])
+	}
+	if _, ok := rows[0]["count"]; !ok {
+		t.Errorf("missing count field: %v", rows[0])
+	}
+	if _, ok := rows[0]["distance"]; ok {
+		t.Errorf("distance field must not leak into JSON: %v", rows[0])
+	}
+}
+
 // ---------- init ----------
 
 func TestInitCreatesDirectories(t *testing.T) {

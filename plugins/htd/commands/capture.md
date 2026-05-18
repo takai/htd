@@ -25,7 +25,7 @@ Ask the user in one turn for:
 - **Title** (required, short — one line).
 - **Body** (optional, free-form Markdown). Skip if they don't offer one.
 - **Source** (optional, e.g., `email`, `meeting`, `slack`).
-- **Tags** (optional, comma-separated).
+- **Tags** (optional, comma-separated). Before introducing a fresh tag, run `htd tag list --similar <candidate>` to surface existing variants and avoid drift (e.g., `ivry_job_scheduler` vs `ivry-job-scheduler`).
 
 Then build a single `htd capture add` invocation:
 

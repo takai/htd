@@ -131,6 +131,9 @@ All commands accept `--json` for machine-readable output and `--path` to target 
 - `htd item archive ID`
 - `htd item restore ID` — undo an accidental `engage done`/`cancel`/`discard`/`archive`; brings a terminal item back to `active` and moves it to `items/<kind>/`.
 
+**Tag**
+- `htd tag list [--similar TAG]` — enumerate every tag in use (across active + archived items) with item counts. Use `--similar <candidate>` **before introducing a new tag during capture/clarify** so variants like `ivry_job_scheduler` vs `ivry-job-scheduler` get surfaced instead of drifting. Tags are case-sensitive; the similarity check combines Levenshtein distance ≤ 3 with normalized-form (lowercase + alphanumeric-only) collision so punctuation/casing variants are caught too.
+
 **Reference (tool-scoped durable notes)** — see "References" above for the data type. All reference verbs accept `--tool TOOL` and default to `claude`.
 - `htd reference add --title TEXT [--body TEXT] [--tag TAG]... [--tool TOOL]` — tag with `type:user|feedback|area_of_focus|project|reference` to drive INDEX.md grouping; other tags fall into `## other`.
 - `htd reference get ID` — falls back to the archive automatically. Archived hits are marked `(archived)` in text mode and `archived: true` in JSON.

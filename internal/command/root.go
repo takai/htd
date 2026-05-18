@@ -59,6 +59,7 @@ func NewRootCommand() *cobra.Command {
 	root.AddCommand(newItemCommand(&c))
 	root.AddCommand(newReferenceCommand(&c))
 	root.AddCommand(newJournalCommand(&c))
+	root.AddCommand(newTagCommand(&c))
 
 	return root
 }
