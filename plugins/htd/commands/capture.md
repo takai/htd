@@ -45,6 +45,22 @@ htd capture add --title "<title>" --done
 
 This lands the item directly in `archive/items/` with `kind: next_action`, `status: done` — no stop in the inbox, no follow-up `engage done` needed. `--body`, `--source`, and `--tag` still apply. Prefer this over `capture add` + `engage done <id>` for anything the user has already completed.
 
+## Skip-inbox shortcut (`--kind`)
+
+If the disposition is already clear at capture time ("this is a project called X with sub-tasks A and B", "this is a tickler for next Monday"), pass `--kind` to land directly in the right list and skip clarify. With `--kind project`, repeat `--child "<title>"` to seed linked next-action children in the same call:
+
+```bash
+# Project + first sub-actions in one step
+htd capture add --kind project --title "<project title>" \
+  --child "<first sub-action>" [--child "<more>"]...
+
+# Skip-inbox for non-project kinds
+htd capture add --kind next_action --title "<title>"
+htd capture add --kind tickler --title "<title>"
+```
+
+Only use this when the user is unambiguous about disposition; when in doubt, stay on the default `capture add` (lands in inbox) and let `/htd:clarify` decide. `--kind inbox` is rejected (redundant with the default); `--child` requires `--kind project`; `--kind` and `--done` are mutually exclusive.
+
 ## Notes
 
 - Titles stay in English per project convention.

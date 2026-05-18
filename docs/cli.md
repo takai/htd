@@ -61,7 +61,7 @@ For all mutating commands:
 ### 2.1 `htd capture add`
 
 ```
-htd capture add --title TEXT [--body TEXT] [--source NAME] [--tag TAG]... [--ref URL]... [--done]
+htd capture add --title TEXT [--body TEXT] [--source NAME] [--tag TAG]... [--ref URL]... [--kind KIND] [--child TITLE]... [--done]
 ```
 
 | Option | Req | Description |
@@ -71,16 +71,28 @@ htd capture add --title TEXT [--body TEXT] [--source NAME] [--tag TAG]... [--ref
 | `--source` | no | Origin (e.g., `email`, `slack`) |
 | `--tag` | no | Tag; repeatable |
 | `--ref` | no | External URL; repeatable |
-| `--done` | no | Capture as already completed (see below) |
+| `--kind` | no | Land directly as this kind instead of `inbox`. Accepts `next_action`, `project`, `waiting_for`, `someday`, `tickler`. `inbox` is rejected as redundant. |
+| `--child` | no | Child next-action title to create and link; repeatable. Requires `--kind project`. |
+| `--done` | no | Capture as already completed (see below). Mutually exclusive with `--kind` and `--child`. |
 
-**Behavior:** Generate ID, set `kind: inbox`, `status: active`, set `created_at`/`updated_at`, write `items/inbox/<id>.md`, print the ID.
+**Behavior:** Generate ID, set `kind: inbox` (or the `--kind` value), `status: active`, write to `items/<kind>/<id>.md`, print the ID.
+
+**`--kind`:** Skips the inbox and lands the item directly in `items/<kind>/`. Equivalent to `capture add` + `organize move <kind>` collapsed into one step.
+
+**`--child` (with `--kind project`):** After writing the parent project, creates one `next_action` per `--child TITLE` with `project: <parent-id>`. Output then matches `organize promote`: parent ID followed by each child ID, one per line (or `{"parent": "...", "children": [...]}` with `--json`). Empty `--child` titles are rejected.
 
 **`--done`:** Writes directly to `archive/items/<id>.md` with `kind: next_action`, `status: done` (no inbox stop). Metadata flags (`--body`/`--source`/`--tag`/`--ref`) still apply.
 
-Example:
+Examples:
 ```
 $ htd capture add --title "Reply to Alice" --done
 20260420-reply_to_alice
+
+$ htd capture add --kind project --title "Launch v2" \
+    --child "Verify staging" --child "Release to prod"
+20260518-launch_v2
+20260518-verify_staging
+20260518-release_to_prod
 ```
 
 ---
@@ -515,7 +527,7 @@ htd completion zsh > "${fpath[1]}/_htd"
 | Command | Description |
 |---------|-------------|
 | `htd init` | Create the htd directory layout |
-| `htd capture add` | Add to inbox (`--done` archives immediately) |
+| `htd capture add` | Add to inbox (`--kind` skips inbox; `--kind project --child ...` seeds children; `--done` archives immediately) |
 | `htd clarify list` / `show ID` / `update ID` / `discard ID` | Process inbox |
 | `htd organize move KIND ID...` | Change kind |
 | `htd organize link ID PROJECT_ID` / `unlink ID` | Manage project link |

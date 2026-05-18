@@ -34,7 +34,10 @@ Creates the full directory layout under the htd root and prints each directory p
 
 ```
 htd capture add --title TEXT [--body TEXT] [--source NAME] [--tag TAG]...
+htd capture add --kind project --title TEXT [--child TITLE]...
 ```
+
+`--kind` lands the item directly outside the inbox (`next_action`, `project`, `waiting_for`, `someday`, `tickler`). When `--kind project` is combined with `--child`, the children become linked `next_action` items in one shot.
 
 ### Clarify
 
