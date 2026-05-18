@@ -49,7 +49,8 @@ htd clarify discard ID
 
 ```
 htd organize move KIND ID [ID...]
-htd organize link ID --project PROJECT_ID
+htd organize link ID PROJECT_ID
+htd organize unlink ID
 htd organize schedule ID [--due DATE] [--defer DATE] [--review DATE]
 ```
 
