@@ -93,6 +93,14 @@ htd item archive ID
 htd item restore ID
 ```
 
+### Tag survey
+
+```
+htd tag list [--similar TAG]
+```
+
+Enumerate every tag in use with its item count. `--similar` surfaces near-matches (Levenshtein distance ≤ 3, or normalized-form collision) — useful before introducing a new tag to avoid drift like `ivry_job_scheduler` vs `ivry-job-scheduler`.
+
 ## Global options
 
 | Option | Default | Description |

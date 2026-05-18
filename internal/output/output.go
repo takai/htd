@@ -477,6 +477,49 @@ func toItemJSONList(items []*model.Item) []itemJSON {
 	return arr
 }
 
+// TagCount is one row of a `tag list` result: the tag string, its item count,
+// and (only used when --similar is set) its Levenshtein distance from the
+// query. Distance is presentation-only — it is rendered in the text table but
+// omitted from JSON to keep the JSON shape independent of flag combinations.
+type TagCount struct {
+	Tag      string
+	Count    int
+	Distance int
+}
+
+// PrintTagCounts prints `tag list` output. Text mode shows TAG\tCOUNT, plus a
+// DISTANCE column when withDistance is true (i.e. when --similar narrowed the
+// list). JSON mode always emits [{tag, count}, ...] with no distance field;
+// an empty slice still renders as [] rather than null.
+func (p *Printer) PrintTagCounts(rows []TagCount, withDistance bool) {
+	if p.json {
+		type tagCountJSON struct {
+			Tag   string `json:"tag"`
+			Count int    `json:"count"`
+		}
+		arr := make([]tagCountJSON, 0, len(rows))
+		for _, r := range rows {
+			arr = append(arr, tagCountJSON{Tag: r.Tag, Count: r.Count})
+		}
+		data, _ := json.Marshal(arr)
+		fmt.Fprintln(p.out, string(data))
+		return
+	}
+	tw := tabwriter.NewWriter(p.out, 0, 0, 2, ' ', 0)
+	if withDistance {
+		fmt.Fprintln(tw, "TAG\tCOUNT\tDISTANCE")
+		for _, r := range rows {
+			fmt.Fprintf(tw, "%s\t%d\t%d\n", r.Tag, r.Count, r.Distance)
+		}
+	} else {
+		fmt.Fprintln(tw, "TAG\tCOUNT")
+		for _, r := range rows {
+			fmt.Fprintf(tw, "%s\t%d\n", r.Tag, r.Count)
+		}
+	}
+	_ = tw.Flush()
+}
+
 // PrintLogItems prints a reflect log view: ID, KIND, STATUS, UPDATED_AT, TITLE.
 // JSON output is the same shape as PrintItems (full item fields).
 func (p *Printer) PrintLogItems(items []*model.Item) {
