@@ -95,6 +95,8 @@ All commands accept `--json` for machine-readable output and `--path` to target 
 **Capture**
 - `htd capture add --title TEXT [--body TEXT] [--source NAME] [--tag TAG]...`
 - `htd capture add --title TEXT --done [--body TEXT] [--source NAME] [--tag TAG]...` — capture an already-completed item. Bypasses the inbox; the item lands directly in `archive/items/` with `kind: next_action`, `status: done`. Prefer this over `capture add` followed by `engage done <id>` when the user has already finished the task.
+- `htd capture add --kind KIND --title TEXT` — skip the inbox and land directly as `next_action`, `project`, `waiting_for`, `someday`, or `tickler` when the disposition is obvious at capture time.
+- `htd capture add --kind project --title TEXT --child "<sub-title>"...` — create a project and seed linked next-action children in one shot. Prefer this over the multi-step capture+move+capture+link chain when the user names sub-actions up front.
 
 **Clarify** (inbox only)
 - `htd clarify list`

@@ -230,6 +230,153 @@ func TestCaptureAddIDFormat(t *testing.T) {
 	}
 }
 
+func TestCaptureAddKindProject(t *testing.T) {
+	dir := setupDir(t)
+	out, _, err := runCmd(t, dir, "capture", "add", "--kind", "project", "--title", "Launch v2")
+	if err != nil {
+		t.Fatalf("capture add --kind project: %v", err)
+	}
+	id := strings.TrimSpace(out)
+	item, _ := readItem(t, dir, id)
+	if item.Kind != model.KindProject {
+		t.Errorf("kind: want project, got %q", item.Kind)
+	}
+	if item.Status != model.StatusActive {
+		t.Errorf("status: want active, got %q", item.Status)
+	}
+
+	cfg := config.New(dir)
+	projectPath := filepath.Join(cfg.DirForKind(model.KindProject), id+".md")
+	if _, err := os.Stat(projectPath); err != nil {
+		t.Errorf("expected item at %q, stat err: %v", projectPath, err)
+	}
+	inboxPath := filepath.Join(cfg.DirForKind(model.KindInbox), id+".md")
+	if _, err := os.Stat(inboxPath); !os.IsNotExist(err) {
+		t.Errorf("expected no item at %q; stat err: %v", inboxPath, err)
+	}
+}
+
+func TestCaptureAddKindNextAction(t *testing.T) {
+	dir := setupDir(t)
+	out, _, err := runCmd(t, dir, "capture", "add", "--kind", "next_action", "--title", "Skip inbox")
+	if err != nil {
+		t.Fatalf("capture add --kind next_action: %v", err)
+	}
+	id := strings.TrimSpace(out)
+	item, _ := readItem(t, dir, id)
+	if item.Kind != model.KindNextAction {
+		t.Errorf("kind: want next_action, got %q", item.Kind)
+	}
+}
+
+func TestCaptureAddKindWithChildren(t *testing.T) {
+	dir := setupDir(t)
+	out, _, err := runCmd(t, dir, "capture", "add",
+		"--kind", "project", "--title", "Launch v2",
+		"--child", "Verify staging", "--child", "Release to prod",
+	)
+	if err != nil {
+		t.Fatalf("capture add --kind project --child: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("want 3 IDs printed (parent + 2 children), got %d: %v", len(lines), lines)
+	}
+	parentID := lines[0]
+	parent, _ := readItem(t, dir, parentID)
+	if parent.Kind != model.KindProject {
+		t.Errorf("parent kind: want project, got %q", parent.Kind)
+	}
+	for _, childID := range lines[1:] {
+		child, _ := readItem(t, dir, childID)
+		if child.Kind != model.KindNextAction {
+			t.Errorf("child %s kind: want next_action, got %q", childID, child.Kind)
+		}
+		if child.Project != parentID {
+			t.Errorf("child %s project: want %q, got %q", childID, parentID, child.Project)
+		}
+	}
+}
+
+func TestCaptureAddKindWithChildrenJSON(t *testing.T) {
+	dir := setupDir(t)
+	out, _, err := runCmd(t, dir, "--json", "capture", "add",
+		"--kind", "project", "--title", "Launch v2",
+		"--child", "Verify staging",
+	)
+	if err != nil {
+		t.Fatalf("capture add --json: %v", err)
+	}
+	var got struct {
+		Parent   string   `json:"parent"`
+		Children []string `json:"children"`
+	}
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("unmarshal: %v\n%s", err, out)
+	}
+	if got.Parent == "" || len(got.Children) != 1 {
+		t.Errorf("unexpected JSON shape: %+v", got)
+	}
+}
+
+func TestCaptureAddKindInboxRejected(t *testing.T) {
+	dir := setupDir(t)
+	_, _, err := runCmd(t, dir, "capture", "add", "--kind", "inbox", "--title", "Why")
+	if err == nil {
+		t.Fatal("expected error for --kind inbox")
+	}
+	if !strings.Contains(err.Error(), "redundant") {
+		t.Errorf("error should explain redundancy, got %v", err)
+	}
+}
+
+func TestCaptureAddKindInvalid(t *testing.T) {
+	dir := setupDir(t)
+	_, _, err := runCmd(t, dir, "capture", "add", "--kind", "bogus", "--title", "Why")
+	if err == nil {
+		t.Fatal("expected error for invalid kind")
+	}
+	if !strings.Contains(err.Error(), "invalid kind") {
+		t.Errorf("error should mention invalid kind, got %v", err)
+	}
+}
+
+func TestCaptureAddChildRequiresProjectKind(t *testing.T) {
+	dir := setupDir(t)
+	_, _, err := runCmd(t, dir, "capture", "add",
+		"--kind", "next_action", "--title", "Solo task", "--child", "Sub",
+	)
+	if err == nil {
+		t.Fatal("expected error when --child used without --kind project")
+	}
+	if !strings.Contains(err.Error(), "--child requires --kind project") {
+		t.Errorf("error should explain --child requires project kind, got %v", err)
+	}
+}
+
+func TestCaptureAddChildEmptyTitleRejected(t *testing.T) {
+	dir := setupDir(t)
+	_, _, err := runCmd(t, dir, "capture", "add",
+		"--kind", "project", "--title", "P", "--child", "",
+	)
+	if err == nil {
+		t.Fatal("expected error for empty --child title")
+	}
+}
+
+func TestCaptureAddDoneConflictsWithKind(t *testing.T) {
+	dir := setupDir(t)
+	_, _, err := runCmd(t, dir, "capture", "add",
+		"--title", "X", "--done", "--kind", "project",
+	)
+	if err == nil {
+		t.Fatal("expected error for --done with --kind")
+	}
+	if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("error should mention mutual exclusion, got %v", err)
+	}
+}
+
 // ---------- clarify ----------
 
 func TestClarifyList(t *testing.T) {
