@@ -51,7 +51,7 @@ func newReflectProjectCommand(c *container) *cobra.Command {
 				return &store.NotFoundError{Kind: store.EntityItem, ID: projectID}
 			}
 
-			cutoff, err := resolveProjectArchiveCutoff(cmd, since, archiveDefaultDays)
+			cutoff, err := resolveSinceCutoff(cmd, since, archiveDefaultDays)
 			if err != nil {
 				return err
 			}
@@ -119,12 +119,13 @@ func newReflectProjectCommand(c *container) *cobra.Command {
 	return cmd
 }
 
-// resolveProjectArchiveCutoff returns the cutoff time for the archive
-// section of `reflect project`. The flag's three-state behavior is:
+// resolveSinceCutoff returns the lower-bound time implied by a --since flag
+// across commands that share the same three-state semantics (reflect project,
+// reflect log). The flag behaves as:
 //   - flag absent → default cutoff (now minus defaultDays)
 //   - --since YYYY-MM-DD → cutoff at that date, local midnight
 //   - --since '' (explicitly empty) → zero time, meaning "no cutoff"
-func resolveProjectArchiveCutoff(cmd *cobra.Command, since string, defaultDays int) (time.Time, error) {
+func resolveSinceCutoff(cmd *cobra.Command, since string, defaultDays int) (time.Time, error) {
 	flag := cmd.Flags().Lookup("since")
 	if flag == nil || !flag.Changed {
 		return time.Now().AddDate(0, 0, -defaultDays), nil
@@ -262,6 +263,7 @@ func newReflectReviewCommand(c *container) *cobra.Command {
 }
 
 func newReflectLogCommand(c *container) *cobra.Command {
+	const logDefaultDays = 30
 	var (
 		since    string
 		until    string
@@ -274,9 +276,9 @@ func newReflectLogCommand(c *container) *cobra.Command {
 		Use:   "log",
 		Short: "List recently resolved items (activity log)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			sinceTime, err := time.ParseInLocation("2006-01-02", since, time.Local)
+			sinceTime, err := resolveSinceCutoff(cmd, since, logDefaultDays)
 			if err != nil {
-				return fmt.Errorf("--since: cannot parse %q as date", since)
+				return err
 			}
 
 			var untilEnd time.Time
@@ -336,12 +338,12 @@ func newReflectLogCommand(c *container) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&since, "since", "", "Show items updated on or after this date (YYYY-MM-DD)")
+	cmd.Flags().StringVar(&since, "since", "",
+		"Show items updated on or after this date (YYYY-MM-DD); default is 30 days ago, pass --since '' to show all")
 	cmd.Flags().StringVar(&until, "until", "", "Show items updated on or before this date (YYYY-MM-DD)")
 	cmd.Flags().StringVar(&kindStr, "kind", "", "Filter by kind")
 	cmd.Flags().StringSliceVar(&tags, "tag", nil, "Filter by tag (repeatable)")
 	cmd.Flags().StringSliceVar(&statuses, "status", nil, "Filter by terminal status (repeatable; default: done)")
-	_ = cmd.MarkFlagRequired("since")
 	return cmd
 }
 

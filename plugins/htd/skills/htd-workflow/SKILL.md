@@ -115,7 +115,7 @@ All commands accept `--json` for machine-readable output and `--path` to target 
 - `htd reflect projects [--stalled]`
 - `htd reflect waiting`
 - `htd reflect review` — items whose `review_at` is due.
-- `htd reflect log --since YYYY-MM-DD [--until DATE] [--kind KIND] [--tag TAG]... [--status STATUS]...` — recently resolved items (activity log). Defaults to `--status done`.
+- `htd reflect log [--since YYYY-MM-DD] [--until DATE] [--kind KIND] [--tag TAG]... [--status STATUS]...` — recently resolved items (activity log). `--since` defaults to 30 days ago; pass `--since ""` for all-time. Defaults to `--status done`.
 - `htd reflect tickler [--pull]` — ticklers whose `defer_until` (or `review_at` fallback) is today or past. With `--pull`, move them into the inbox for re-clarification (clears `defer_until`, keeps `review_at`).
 
 **Engage** (act on the system)

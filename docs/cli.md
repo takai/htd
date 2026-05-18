@@ -189,18 +189,18 @@ All active items where `review_at` is today or past. Columns: `ID`, `TITLE`, `KI
 ### 5.5 `htd reflect log`
 
 ```
-htd reflect log --since DATE [--until DATE] [--kind KIND] [--tag TAG]... [--status STATUS]...
+htd reflect log [--since DATE] [--until DATE] [--kind KIND] [--tag TAG]... [--status STATUS]...
 ```
 
 | Option | Req | Description |
 |--------|-----|-------------|
-| `--since` | yes | Updated on/after this date (`YYYY-MM-DD`) |
+| `--since` | no | Updated on/after this date (`YYYY-MM-DD`). Default: 30 days ago. Pass `--since ""` to show all. |
 | `--until` | no | Updated on/before (inclusive end-of-day) |
 | `--kind` | no | Filter by kind |
 | `--tag` | no | Filter by tag; repeatable (AND) |
 | `--status` | no | Terminal status filter; repeatable. Values: `done`, `canceled`, `discarded`, `archived`. Default: `done`. |
 
-Reads `archive/items/`. Columns: `ID`, `KIND`, `STATUS`, `UPDATED_AT`, `TITLE`. Sort by `updated_at` descending.
+Reads `archive/items/`. Columns: `ID`, `KIND`, `STATUS`, `UPDATED_AT`, `TITLE`. Sort by `updated_at` descending. JSON output is always a valid array — empty results render as `[]`.
 
 ### 5.6 `htd reflect tickler [--pull]`
 
@@ -534,7 +534,7 @@ htd completion zsh > "${fpath[1]}/_htd"
 | `htd organize schedule ID` | Set dates |
 | `htd organize promote ID --child TITLE...` | Promote to project with children |
 | `htd reflect next-actions` / `projects [--stalled]` / `waiting` / `review` | List views |
-| `htd reflect log --since DATE` | Activity log of resolved items |
+| `htd reflect log [--since DATE]` | Activity log of resolved items (default: last 30 days) |
 | `htd reflect tickler [--pull]` | Fired ticklers, optionally pull to inbox |
 | `htd reflect project ID` | Project with active + archived children |
 | `htd engage done ID...` / `cancel ID...` | Terminal transitions |
