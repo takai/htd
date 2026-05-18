@@ -462,14 +462,81 @@ func TestOrganizeLink(t *testing.T) {
 	writeItem(t, dir, proj, "")
 	writeItem(t, dir, task, "")
 
-	_, _, err := runCmd(t, dir, "organize", "link", "20260417-my_task", "--project", "20260417-my_proj")
+	_, stderr, err := runCmd(t, dir, "organize", "link", "20260417-my_task", "20260417-my_proj")
 	if err != nil {
 		t.Fatalf("organize link: %v", err)
+	}
+	if stderr != "" {
+		t.Errorf("positional form should not emit warnings, got stderr: %q", stderr)
 	}
 
 	got, _ := readItem(t, dir, "20260417-my_task")
 	if got.Project != "20260417-my_proj" {
 		t.Errorf("project: want %q, got %q", "20260417-my_proj", got.Project)
+	}
+}
+
+func TestOrganizeLinkDeprecatedFlag(t *testing.T) {
+	dir := setupDir(t)
+	proj := nowItem("20260518-dep_proj", model.KindProject, model.StatusActive)
+	task := nowItem("20260518-dep_task", model.KindNextAction, model.StatusActive)
+	writeItem(t, dir, proj, "")
+	writeItem(t, dir, task, "")
+
+	stdout, _, err := runCmd(t, dir, "organize", "link", "20260518-dep_task", "--project", "20260518-dep_proj")
+	if err != nil {
+		t.Fatalf("organize link --project: %v", err)
+	}
+	if !strings.Contains(stdout, "deprecated") {
+		t.Errorf("cobra should warn that --project is deprecated, got %q", stdout)
+	}
+
+	got, _ := readItem(t, dir, "20260518-dep_task")
+	if got.Project != "20260518-dep_proj" {
+		t.Errorf("project: want %q, got %q", "20260518-dep_proj", got.Project)
+	}
+}
+
+func TestOrganizeLinkDeprecatedFlagEmptyUnlinks(t *testing.T) {
+	dir := setupDir(t)
+	task := nowItem("20260518-legacy_unlink", model.KindNextAction, model.StatusActive)
+	task.Project = "20260518-some_proj"
+	writeItem(t, dir, task, "")
+
+	_, _, err := runCmd(t, dir, "organize", "link", "20260518-legacy_unlink", "--project", "")
+	if err != nil {
+		t.Fatalf("organize link --project '': %v", err)
+	}
+
+	got, _ := readItem(t, dir, "20260518-legacy_unlink")
+	if got.Project != "" {
+		t.Errorf("project: want empty, got %q", got.Project)
+	}
+}
+
+func TestOrganizeLinkMissingProject(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260518-no_proj", model.KindNextAction, model.StatusActive), "")
+
+	_, _, err := runCmd(t, dir, "organize", "link", "20260518-no_proj")
+	if err == nil {
+		t.Fatalf("expected error when project arg is missing")
+	}
+	if !strings.Contains(err.Error(), "missing project ID") {
+		t.Errorf("error should mention missing project ID, got %v", err)
+	}
+}
+
+func TestOrganizeLinkEmptyPositional(t *testing.T) {
+	dir := setupDir(t)
+	writeItem(t, dir, nowItem("20260518-empty_pos", model.KindNextAction, model.StatusActive), "")
+
+	_, _, err := runCmd(t, dir, "organize", "link", "20260518-empty_pos", "")
+	if err == nil {
+		t.Fatalf("expected error when positional project is empty")
+	}
+	if !strings.Contains(err.Error(), "htd organize unlink") {
+		t.Errorf("error should point at 'htd organize unlink', got %v", err)
 	}
 }
 
@@ -2741,7 +2808,7 @@ func TestOrganizeLinkVerbose(t *testing.T) {
 	writeItem(t, dir, nowItem("20260421-vp", model.KindProject, model.StatusActive), "")
 	writeItem(t, dir, nowItem("20260421-vt", model.KindNextAction, model.StatusActive), "")
 
-	out, _, err := runCmd(t, dir, "-v", "organize", "link", "20260421-vt", "--project", "20260421-vp")
+	out, _, err := runCmd(t, dir, "-v", "organize", "link", "20260421-vt", "20260421-vp")
 	if err != nil {
 		t.Fatalf("organize link -v: %v", err)
 	}

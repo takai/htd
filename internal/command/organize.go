@@ -88,14 +88,27 @@ func moveItem(c *container, itemID string, newKind model.Kind) (*model.Item, err
 }
 
 func newOrganizeLinkCommand(c *container) *cobra.Command {
-	var projectID string
+	var projectFlag string
 
 	cmd := &cobra.Command{
-		Use:   "link ID",
+		Use:   "link ID [PROJECT_ID]",
 		Short: "Link an item to a project",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			itemID := args[0]
+
+			var projectID string
+			switch {
+			case len(args) == 2:
+				if args[1] == "" {
+					return fmt.Errorf("project ID must not be empty; use 'htd organize unlink %s' to clear", itemID)
+				}
+				projectID = args[1]
+			case cmd.Flags().Changed("project"):
+				projectID = projectFlag
+			default:
+				return fmt.Errorf("missing project ID: htd organize link <id> <project>")
+			}
 
 			if projectID != "" {
 				projPath, err := store.FindItem(c.cfg, projectID)
@@ -132,8 +145,8 @@ func newOrganizeLinkCommand(c *container) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&projectID, "project", "", "Project ID to link to (empty string to unlink)")
-	_ = cmd.MarkFlagRequired("project")
+	cmd.Flags().StringVar(&projectFlag, "project", "", "Project ID to link to (empty string to unlink)")
+	_ = cmd.Flags().MarkDeprecated("project", "use positional argument: htd organize link <id> <project>")
 	return cmd
 }
 

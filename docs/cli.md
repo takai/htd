@@ -119,9 +119,11 @@ Inbox-only. Sets `status: discarded`, moves to `archive/items/<id>.md`. For non-
 
 Processes IDs in order; stops on first failure (missing ID, terminal status). IDs processed before the failure remain moved. Only active items can be moved.
 
-### 4.2 `htd organize link ID --project PROJECT_ID`
+### 4.2 `htd organize link ID PROJECT_ID`
 
-`PROJECT_ID` must exist with `kind: project`. Sets `project` field. To clear, use `organize unlink` (`--project ""` is a legacy alias).
+`PROJECT_ID` must exist with `kind: project`. Sets `project` field. Empty positional is rejected — use `organize unlink` to clear.
+
+The legacy flag form `--project <pid>` (including `--project ""` for unlink) still works but is deprecated and prints a warning; it will be removed in a future release.
 
 ### 4.3 `htd organize unlink ID`
 
@@ -516,7 +518,7 @@ htd completion zsh > "${fpath[1]}/_htd"
 | `htd capture add` | Add to inbox (`--done` archives immediately) |
 | `htd clarify list` / `show ID` / `update ID` / `discard ID` | Process inbox |
 | `htd organize move KIND ID...` | Change kind |
-| `htd organize link ID --project PID` / `unlink ID` | Manage project link |
+| `htd organize link ID PROJECT_ID` / `unlink ID` | Manage project link |
 | `htd organize schedule ID` | Set dates |
 | `htd organize promote ID --child TITLE...` | Promote to project with children |
 | `htd reflect next-actions` / `projects [--stalled]` / `waiting` / `review` | List views |
