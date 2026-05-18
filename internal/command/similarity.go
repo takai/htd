@@ -36,10 +36,7 @@ func levenshtein(a, b string) int {
 }
 
 func min3(a, b, c int) int {
-	m := min(b, a)
-	if c < m {
-		m = c
-	}
+	m := min(c, min(b, a))
 	return m
 }
 
