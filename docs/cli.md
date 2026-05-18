@@ -202,12 +202,18 @@ htd reflect log [--since DATE] [--until DATE] [--kind KIND] [--tag TAG]... [--st
 
 Reads `archive/items/`. Columns: `ID`, `KIND`, `STATUS`, `UPDATED_AT`, `TITLE`. Sort by `updated_at` descending. JSON output is always a valid array — empty results render as `[]`.
 
-### 5.6 `htd reflect tickler [--pull]`
+### 5.6 `htd reflect tickler [--pull] [--all | --pending]`
 
-`items/tickler/`, `status: active`. Trigger = `defer_until` else `review_at`; skip if both absent. Keep items whose trigger is today or past, sort ascending.
+`items/tickler/`, `status: active`. Trigger = `defer_until` else `review_at`; skip if both absent. Sort by trigger ascending.
+
+Visibility flags (mutually exclusive):
+
+- Default: fired only — items whose trigger is today or past.
+- `--pending`: pending only — items whose trigger is in the future.
+- `--all`: both fired and pending in one list (`--all` is the weekly-review view: "what just fired plus what's coming back").
 
 - Without `--pull`: print `ID`, `TITLE`, `DEFER_UNTIL`. No state change.
-- With `--pull`: for each item in order, set `kind: inbox`, clear `defer_until` (preserve `review_at`), move to `items/inbox/<id>.md`, print the ID.
+- With `--pull`: for each fired item in order, set `kind: inbox`, clear `defer_until` (preserve `review_at`), move to `items/inbox/<id>.md`, print the ID. `--pull` rejects `--all`/`--pending` since pending items have nothing to pull.
 
 Pulled items flow through normal clarify; a fired tickler is a re-decide prompt, not auto-promotion.
 
@@ -535,7 +541,7 @@ htd completion zsh > "${fpath[1]}/_htd"
 | `htd organize promote ID --child TITLE...` | Promote to project with children |
 | `htd reflect next-actions` / `projects [--stalled]` / `waiting` / `review` | List views |
 | `htd reflect log [--since DATE]` | Activity log of resolved items (default: last 30 days) |
-| `htd reflect tickler [--pull]` | Fired ticklers, optionally pull to inbox |
+| `htd reflect tickler [--pull \| --all \| --pending]` | Fired (default), pending, or both; `--pull` empties fired into the inbox |
 | `htd reflect project ID` | Project with active + archived children |
 | `htd engage done ID...` / `cancel ID...` | Terminal transitions |
 | `htd engage next-actions` / `waiting` | Pick work now |

@@ -2155,6 +2155,84 @@ func TestReflectTicklerPullJSONEmpty(t *testing.T) {
 	}
 }
 
+func TestReflectTicklerPending(t *testing.T) {
+	dir := setupDir(t)
+	now := time.Now()
+	past := now.Add(-24 * time.Hour)
+	future := now.Add(24 * time.Hour)
+
+	fired := nowItem("20260417-tick_fired", model.KindTickler, model.StatusActive)
+	fired.DeferUntil = &past
+	writeItem(t, dir, fired, "")
+
+	pending := nowItem("20260518-tick_pending", model.KindTickler, model.StatusActive)
+	pending.DeferUntil = &future
+	writeItem(t, dir, pending, "")
+
+	out, _, err := runCmd(t, dir, "reflect", "tickler", "--pending")
+	if err != nil {
+		t.Fatalf("reflect tickler --pending: %v", err)
+	}
+	if !strings.Contains(out, "20260518-tick_pending") {
+		t.Errorf("--pending should include future tickler: %q", out)
+	}
+	if strings.Contains(out, "20260417-tick_fired") {
+		t.Errorf("--pending should exclude fired tickler: %q", out)
+	}
+}
+
+func TestReflectTicklerAll(t *testing.T) {
+	dir := setupDir(t)
+	now := time.Now()
+	past := now.Add(-48 * time.Hour)
+	future := now.Add(24 * time.Hour)
+
+	fired := nowItem("20260417-tick_fired", model.KindTickler, model.StatusActive)
+	fired.DeferUntil = &past
+	writeItem(t, dir, fired, "")
+
+	pending := nowItem("20260518-tick_pending", model.KindTickler, model.StatusActive)
+	pending.DeferUntil = &future
+	writeItem(t, dir, pending, "")
+
+	out, _, err := runCmd(t, dir, "reflect", "tickler", "--all")
+	if err != nil {
+		t.Fatalf("reflect tickler --all: %v", err)
+	}
+	firedIdx := strings.Index(out, "20260417-tick_fired")
+	pendingIdx := strings.Index(out, "20260518-tick_pending")
+	if firedIdx == -1 || pendingIdx == -1 {
+		t.Fatalf("--all should include both fired and pending: %q", out)
+	}
+	if firedIdx > pendingIdx {
+		t.Errorf("--all should sort by trigger ascending (fired before pending), got:\n%s", out)
+	}
+}
+
+func TestReflectTicklerAllPendingConflict(t *testing.T) {
+	dir := setupDir(t)
+	_, _, err := runCmd(t, dir, "reflect", "tickler", "--all", "--pending")
+	if err == nil {
+		t.Fatal("expected error when --all and --pending are combined")
+	}
+	if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("error should mention mutual exclusion, got %v", err)
+	}
+}
+
+func TestReflectTicklerPullConflict(t *testing.T) {
+	dir := setupDir(t)
+	for _, mode := range []string{"--all", "--pending"} {
+		_, _, err := runCmd(t, dir, "reflect", "tickler", "--pull", mode)
+		if err == nil {
+			t.Errorf("expected error for --pull %s", mode)
+		}
+		if err != nil && !strings.Contains(err.Error(), "--pull only applies to fired") {
+			t.Errorf("error should explain --pull constraint, got %v", err)
+		}
+	}
+}
+
 // ---------- item ----------
 
 func TestItemGet(t *testing.T) {

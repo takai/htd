@@ -348,12 +348,23 @@ func newReflectLogCommand(c *container) *cobra.Command {
 }
 
 func newReflectTicklerCommand(c *container) *cobra.Command {
-	var pull bool
+	var (
+		pull    bool
+		all     bool
+		pending bool
+	)
 
 	cmd := &cobra.Command{
 		Use:   "tickler",
 		Short: "List fired tickler items, or pull them into the inbox with --pull",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if all && pending {
+				return fmt.Errorf("--all and --pending are mutually exclusive")
+			}
+			if pull && (all || pending) {
+				return fmt.Errorf("--pull only applies to fired ticklers; remove --all/--pending")
+			}
+
 			kind := model.KindTickler
 			status := model.StatusActive
 			items, err := store.List(c.cfg, store.Filter{Kind: &kind, Status: &status})
@@ -363,27 +374,34 @@ func newReflectTicklerCommand(c *container) *cobra.Command {
 			now := time.Now()
 			todayEnd := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, now.Location())
 
-			var due []*model.Item
+			var selected []*model.Item
 			triggers := make(map[string]time.Time)
 			for _, it := range items {
 				trigger := ticklerTrigger(it)
-				if trigger == nil || trigger.After(todayEnd) {
+				if trigger == nil {
 					continue
 				}
-				due = append(due, it)
+				fired := !trigger.After(todayEnd)
+				switch {
+				case pending && fired:
+					continue
+				case !all && !pending && !fired:
+					continue
+				}
+				selected = append(selected, it)
 				triggers[it.ID] = *trigger
 			}
-			sort.Slice(due, func(i, j int) bool {
-				return triggers[due[i].ID].Before(triggers[due[j].ID])
+			sort.Slice(selected, func(i, j int) bool {
+				return triggers[selected[i].ID].Before(triggers[selected[j].ID])
 			})
 
 			if !pull {
-				c.printer.PrintItems(due)
+				c.printer.PrintItems(selected)
 				return nil
 			}
 
-			pulled := make([]string, 0, len(due))
-			for _, it := range due {
+			pulled := make([]string, 0, len(selected))
+			for _, it := range selected {
 				src := store.PathForItem(c.cfg, it)
 				full, body, err := store.Read(src)
 				if err != nil {
@@ -404,6 +422,8 @@ func newReflectTicklerCommand(c *container) *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&pull, "pull", false, "Move fired tickler items into the inbox")
+	cmd.Flags().BoolVar(&all, "all", false, "Include pending (future-dated) ticklers alongside fired ones")
+	cmd.Flags().BoolVar(&pending, "pending", false, "Show only pending (future-dated) ticklers")
 	return cmd
 }
 

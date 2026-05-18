@@ -63,6 +63,14 @@ htd reflect tickler --pull
 
 Hand off to `/htd:clarify` to process the pulled items.
 
+After emptying, surface what's queued for the coming weeks so the user knows what's coming back:
+
+```bash
+htd reflect tickler --pending --json
+```
+
+This is awareness, not action — no `--pull` here.
+
 ---
 
 ## Phase B — Get Current
