@@ -1929,6 +1929,64 @@ func TestReflectLogInvalidStatus(t *testing.T) {
 	}
 }
 
+func TestReflectLogDefaultsToRecentWindow(t *testing.T) {
+	dir := setupDir(t)
+	now := time.Now()
+	recent := nowItem("20260518-recent_done", model.KindNextAction, model.StatusDone)
+	stale := &model.Item{
+		ID: "20251231-stale_done", Title: "stale", Kind: model.KindNextAction, Status: model.StatusDone,
+		CreatedAt: now.AddDate(0, 0, -90),
+		UpdatedAt: now.AddDate(0, 0, -90),
+	}
+	writeItem(t, dir, recent, "")
+	writeItem(t, dir, stale, "")
+
+	out, _, err := runCmd(t, dir, "reflect", "log")
+	if err != nil {
+		t.Fatalf("reflect log (no --since): %v", err)
+	}
+	if !strings.Contains(out, "20260518-recent_done") {
+		t.Errorf("recent item should be in default window: %q", out)
+	}
+	if strings.Contains(out, "20251231-stale_done") {
+		t.Errorf("item older than 30-day default should be excluded: %q", out)
+	}
+}
+
+func TestReflectLogSinceEmptyShowsAll(t *testing.T) {
+	dir := setupDir(t)
+	now := time.Now()
+	stale := &model.Item{
+		ID: "20251231-stale_done", Title: "stale", Kind: model.KindNextAction, Status: model.StatusDone,
+		CreatedAt: now.AddDate(0, 0, -90),
+		UpdatedAt: now.AddDate(0, 0, -90),
+	}
+	writeItem(t, dir, stale, "")
+
+	out, _, err := runCmd(t, dir, "reflect", "log", "--since", "")
+	if err != nil {
+		t.Fatalf("reflect log --since '': %v", err)
+	}
+	if !strings.Contains(out, "20251231-stale_done") {
+		t.Errorf("--since '' should include items older than default window: %q", out)
+	}
+}
+
+func TestReflectLogJSONEmpty(t *testing.T) {
+	dir := setupDir(t)
+	out, _, err := runCmd(t, dir, "reflect", "log", "--json")
+	if err != nil {
+		t.Fatalf("reflect log --json (no args): %v", err)
+	}
+	var arr []map[string]any
+	if err := json.Unmarshal([]byte(out), &arr); err != nil {
+		t.Fatalf("output should be a valid JSON array, got %q: %v", out, err)
+	}
+	if len(arr) != 0 {
+		t.Errorf("empty repo should yield empty array, got %d items", len(arr))
+	}
+}
+
 func TestReflectTickler(t *testing.T) {
 	dir := setupDir(t)
 	now := time.Now()
