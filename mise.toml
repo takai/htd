@@ -1,8 +1,8 @@
 [tools]
-go = "1.26.2"
-golangci-lint = "v2.11.4"
-hk = "1.42.0"
-pkl = "latest"
+go = "1.26.3"
+golangci-lint = "v2.12.2"
+hk = "1.45.0"
+pkl = "0.31.1"
 
 [tasks.build]
 description = "Build the htd binary"
